@@ -4,6 +4,16 @@
   const starter = { messages: [], knowledge: [] };
   let data = loadData();
   let installPrompt = null;
+  const API_KEY = "nila.api.config.v1";
+  function apiConfig() { try { return JSON.parse(localStorage.getItem(API_KEY) || "{}"); } catch { return {}; } }
+  function setApiStatus(message) { const el = $("api-status"); if (el) el.textContent = message; const hint = $("connection-hint"); if (hint) hint.textContent = apiConfig().url ? "Python backend configured · Replies use Nila's SQLite retrieval engine when online" : "Local notes mode · Configure Python backend in Settings to sync with SQLite"; }
+  async function apiRequest(path, options = {}) {
+    const cfg = apiConfig();
+    if (!cfg.url || !cfg.token) throw new Error("Backend URL/token not configured");
+    const response = await fetch(cfg.url.replace(/\\/$/, "") + path, { ...options, headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfg.token, ...(options.headers || {}) } });
+    if (!response.ok) throw new Error("Backend returned HTTP " + response.status);
+    return response.json();
+  }
   function loadData() {
     try { return Object.assign({}, starter, JSON.parse(localStorage.getItem(KEY) || "{}")); }
     catch { return structuredClone(starter); }
@@ -64,11 +74,22 @@
     }
     return "Chellam, indha kelvikku match aagura note innum en knowledge-la illa. Learning tab-la indha topic-ai note-aa save pannu; appuram naan adha search panni eduththu tharen. Ippo external AI model connect aagala, so saved notes-ku veliya irukkura kelvigalukku reliable answer generate panna mudiyadhu.";
   }
-  function send(text) {
+  async function send(text) {
     const clean = text.trim(); if (!clean) return;
-    addMessage("user", clean); addMessage("assistant", answerFor(clean)); saveData();
+    addMessage("user", clean);
+    const answerIndex = data.messages.length;
+    addMessage("assistant", "Nila is thinking…"); saveData();
     $("chat-input").value = ""; $("chat-input").style.height = "auto";
     $("suggestions").hidden = true;
+    try {
+      const result = await apiRequest("/api/chat", { method: "POST", body: JSON.stringify({ message: clean }) });
+      data.messages[answerIndex].text = result.answer || "Backend returned an empty answer.";
+      setApiStatus("Connected · " + (result.engine || "Nila Python engine"));
+    } catch (err) {
+      data.messages[answerIndex].text = answerFor(clean);
+      if (apiConfig().url) setApiStatus("Backend unavailable; using phone-local notes. Check URL, token, or server status.");
+    }
+    saveData();
   }
   $("chat-form").addEventListener("submit", e => { e.preventDefault(); send($("chat-input").value); });
   $("chat-input").addEventListener("input", e => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight,140) + "px"; });
@@ -78,11 +99,36 @@
     document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("selected", b === btn));
     window.scrollTo({top:0,behavior:"smooth"});
   }));
-  $("knowledge-form").addEventListener("submit", e => {
+  $("knowledge-form").addEventListener("submit", async e => {
     e.preventDefault(); const title = $("note-title").value.trim(), content = $("note-content").value.trim();
     if (!title || !content) return;
     data.knowledge.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2,7), title, content, at: new Date().toISOString() });
-    $("note-title").value = ""; $("note-content").value = ""; saveData(); toast("Saved to Nila's knowledge.");
+    $("note-title").value = ""; $("note-content").value = ""; saveData();
+    try {
+      const result = await apiRequest("/api/knowledge", { method: "POST", body: JSON.stringify({ title, content, source: "Nila phone app", verified: false, topic: "" }) });
+      toast("Saved on phone + Python SQLite (ID " + result.id + ").");
+    } catch (err) {
+      toast(apiConfig().url ? "Saved on phone only; backend sync failed." : "Saved on this phone. Connect backend in Settings to sync.");
+    }
+  });
+
+  $("api-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const url = $("api-url").value.trim().replace(/\\/$/, "");
+    const token = $("api-token").value.trim();
+    if (!url || !token) { setApiStatus("Enter both backend URL and access token."); return; }
+    if (!url.startsWith("https://")) { setApiStatus("Use an HTTPS backend URL."); return; }
+    localStorage.setItem(API_KEY, JSON.stringify({ url, token }));
+    setApiStatus("Testing secure connection…");
+    try {
+      const health = await fetch(url + "/api/health");
+      if (!health.ok) throw new Error("Health check failed: HTTP " + health.status);
+      const test = await apiRequest("/api/chat", { method: "POST", body: JSON.stringify({ message: "connection test" }) });
+      setApiStatus("Connected successfully · " + (test.engine || "Nila Python engine"));
+      toast("Nila Python backend connected, chellam!");
+    } catch (err) {
+      setApiStatus("Could not connect. Check the HTTPS URL, token, CORS settings, and whether the server is awake.");
+    }
   });
   $("clear-notes").addEventListener("click", () => {
     if (!data.knowledge.length) return toast("There are no notes to clear.");
@@ -111,6 +157,10 @@
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
     window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
   }
+  const savedConfig = apiConfig();
+  if ($("api-url")) $("api-url").value = savedConfig.url || "";
+  if ($("api-token")) $("api-token").value = savedConfig.token || "";
+  if (savedConfig.url) setApiStatus("Backend configured. Press Save & test connection to verify.");
   if (!data.messages.length) {
     addMessage("assistant", "Vanakkam, chellam 💙 Naan Nila. Learning tab-la un notes add pannina, indha prototype andha notes-ai search panni chat-la kaattum. Idhu local demo; full AI model innum connect pannala.");
   }

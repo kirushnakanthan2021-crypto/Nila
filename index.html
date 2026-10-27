@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#080d20">
+  <meta name="description" content="Nila — a private, lightweight personal AI learning prototype.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+  <title>Nila — Personal AI</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-mark" aria-hidden="true">N</div>
+      <div class="brand-copy"><h1>Nila</h1><p>YOUR PRIVATE AI WORKSPACE</p></div>
+      <span class="status"><i></i> LOCAL MODE</span>
+    </header>
+    <main>
+      <section id="chat-view" class="view active" aria-label="Chat">
+        <div class="welcome">
+          <p class="eyebrow">MIDNIGHT BLUE EDITION</p>
+          <h2>Vanakkam, chellam<span> ✦</span></h2>
+          <p class="subcopy">Nila is ready to work with the notes you teach her on this device.</p>
+          <div class="privacy-note"><span>◆</span><div><strong>Private by design</strong><small>Messages and notes stay in this browser on this device.</small></div></div>
+        </div>
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <div class="suggestions" id="suggestions">
+          <button class="suggestion" data-prompt="What can you do right now?">What can you do?</button>
+          <button class="suggestion" data-prompt="How do I teach you something new?">Teach Nila</button>
+        </div>
+        <form id="chat-form" class="composer">
+          <label class="sr-only" for="chat-input">Message Nila</label>
+          <textarea id="chat-input" rows="1" maxlength="3000" placeholder="Message Nila…" required></textarea>
+          <button class="send-btn" type="submit" aria-label="Send message">↑</button>
+        </form>
+        <p class="composer-hint">Prototype · No external AI API connected yet</p>
+      </section>
+      <section id="learn-view" class="view" aria-label="Learning and memory">
+        <div class="page-heading"><p class="eyebrow">BUILD HER KNOWLEDGE</p><h2>Learning space</h2><p class="subcopy">Add notes that Nila can search when you chat.</p></div>
+        <div class="stats-grid">
+          <article class="stat-card"><span>Saved notes</span><strong id="knowledge-count">0</strong></article>
+          <article class="stat-card"><span>Chat messages</span><strong id="message-count">0</strong></article>
+        </div>
+        <form id="knowledge-form" class="panel">
+          <label for="note-title">Note title</label><input id="note-title" maxlength="100" placeholder="e.g. My AI project" required>
+          <label for="note-content">What should Nila learn?</label><textarea id="note-content" rows="5" maxlength="6000" placeholder="Write a fact, instruction, idea, or project note…" required></textarea>
+          <button class="primary-btn" type="submit">＋ Save to Nila's knowledge</button>
+        </form>
+        <div class="section-row"><h3>Saved knowledge</h3><button id="clear-notes" class="text-btn" type="button">Clear all</button></div>
+        <div id="knowledge-list" class="knowledge-list"></div>
+      </section>
+      <section id="settings-view" class="view" aria-label="Settings">
+        <div class="page-heading"><p class="eyebrow">YOUR WORKSPACE</p><h2>Settings</h2><p class="subcopy">Simple controls for this first mobile version.</p></div>
+        <article class="panel setting-row"><div><strong>Install Nila</strong><p>Add Nila to your phone's home screen for an app-like experience.</p></div><button id="install-btn" class="secondary-btn" type="button">Install</button></article>
+        <article class="panel"><h3>Privacy</h3><p class="muted">This prototype saves chat history and knowledge in this browser's local storage. Clearing browser data can erase it. It does not sync with your Python/SQLite engine yet.</p><button id="export-btn" class="secondary-btn full" type="button">Export my data (JSON)</button><label class="import-label" for="import-file">Import a Nila backup</label><input id="import-file" type="file" accept="application/json">
+        </article>
+        <article class="panel"><h3>What this version can do</h3><ul class="feature-list"><li>Keep chat history on this device</li><li>Save notes and retrieve related notes in chat</li><li>Export and restore your notes</li><li>Work offline after the first load, where supported</li></ul><p class="muted">It is not yet a full language model and cannot learn autonomously. The Python engine and an AI model can be connected in a later stage.</p></article>
+      </section>
+    </main>
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="nav-item selected" data-view="chat-view"><span>◉</span><small>Chat</small></button>
+      <button class="nav-item" data-view="learn-view"><span>✧</span><small>Learn</small></button>
+      <button class="nav-item" data-view="settings-view"><span>⚙</span><small>Settings</small></button>
+    </nav>
+    <div id="toast" class="toast" role="status"></div>
+  </div>
+  <script src="./app.js" defer></script>
+</body>
+</html>

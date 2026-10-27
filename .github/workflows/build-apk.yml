@@ -1,4 +1,4 @@
-name: Build Nila Android APK
+name: Build and release Nila Android APK
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ on:
       - ".github/workflows/build-apk.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-apk:
@@ -31,20 +31,29 @@ jobs:
         with:
           node-version: "22"
 
+      # Preserve the debug signing key between builds so later APKs can update
+      # the first APK produced by this workflow. The first post-change build
+      # creates the key; subsequent runs restore it from the Actions cache.
+      - name: Restore Nila signing key
+        uses: actions/cache@v5
+        with:
+          path: ~/.android/debug.keystore
+          key: nila-debug-signing-key-v1
+
       - name: Prepare app files
+        env:
+          APP_VERSION: v1.0.${{ github.run_number }}
         run: |
-          mkdir -p www
+          mkdir -p www ~/.android
           cp index.html styles.css app.js www/
           cp manifest.webmanifest www/ || true
+          printf '{"version":"%s"}\n' "$APP_VERSION" > www/app-version.json
           cat > package.json <<'EOF'
           {
             "name": "nila-android",
             "version": "1.0.0",
             "private": true,
-            "description": "Nila personal AI Android wrapper",
-            "scripts": {
-              "build:android": "cap sync android"
-            }
+            "description": "Nila personal AI wrapper"
           }
           EOF
           cat > capacitor.config.json <<'EOF'
@@ -64,17 +73,33 @@ jobs:
       - name: Generate Android project
         run: npx cap add android
 
-      - name: Build debug APK
+      - name: Build APK
+        env:
+          APP_VERSION: v1.0.${{ github.run_number }}
         run: |
           npx cap sync android
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk "../Nila-${APP_VERSION}.apk"
 
-      - name: Publish APK artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v6
         with:
           name: Nila-Android-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: Nila-v1.0.${{ github.run_number }}.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Nila v1.0.${{ github.run_number }}
+          body: |
+            Nila Android APK release.
+
+            Download the APK asset below and install it on your Android phone.
+            Android may ask you to confirm installation.
+          files: Nila-v1.0.${{ github.run_number }}.apk
+          generate_release_notes: true

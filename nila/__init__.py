@@ -1,2 +1,2 @@
 """Nila personal AI foundation — self-learning retrieval + agent layer."""
-__version__ = "0.3.1"
+__version__ = "0.3.2"

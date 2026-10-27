@@ -1,1 +1,3 @@
-# Nila v0.1 uses Python standard library only. No pip install required.
+# Python CLI foundation uses standard library; these packages enable the phone-app API.
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0

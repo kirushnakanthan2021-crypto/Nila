@@ -157,6 +157,38 @@
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
     window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
   }
+  // Check GitHub Releases for a newer APK. Version is embedded by the APK build workflow.
+  const REPO_RELEASES_API = "https://api.github.com/repos/kirushnakanthan2021-crypto/Nila/releases/latest";
+  let availableApkUrl = "";
+  async function checkForUpdates() {
+    try {
+      const [versionResponse, releaseResponse] = await Promise.all([
+        fetch("./app-version.json?ts=" + Date.now(), { cache: "no-store" }),
+        fetch(REPO_RELEASES_API, { headers: { Accept: "application/vnd.github+json" }, cache: "no-store" })
+      ]);
+      if (!versionResponse.ok || !releaseResponse.ok) return;
+      const localVersion = await versionResponse.json();
+      const release = await releaseResponse.json();
+      if (!release || release.draft || release.prerelease || !release.tag_name) return;
+      const localTag = String(localVersion.version || "v0.0.0");
+      if (release.tag_name === localTag) return;
+      const apk = (release.assets || []).find(asset => asset.name && asset.name.endsWith(".apk"));
+      if (!apk) return;
+      availableApkUrl = apk.browser_download_url || release.html_url;
+      const banner = $("update-banner");
+      if (!banner) return;
+      $("update-copy").textContent = "Installed " + localTag + " · Available " + release.tag_name + ". Download the APK, then open it from Downloads to install.";
+      banner.hidden = false;
+      $("update-btn").onclick = () => {
+        if (availableApkUrl) window.open(availableApkUrl, "_blank", "noopener");
+        else window.open(release.html_url, "_blank", "noopener");
+      };
+      $("dismiss-update").onclick = () => { banner.hidden = true; };
+      if ("Notification" in window && Notification.permission === "granted") {
+        try { new Notification("Nila update available", { body: "A new Nila APK is ready to install." }); } catch {}
+      }
+    } catch { /* Offline or GitHub API unavailable; keep Nila usable. */ }
+  }
   const savedConfig = apiConfig();
   if ($("api-url")) $("api-url").value = savedConfig.url || "";
   if ($("api-token")) $("api-token").value = savedConfig.token || "";
@@ -165,4 +197,5 @@
     addMessage("assistant", "Vanakkam, chellam 💙 Naan Nila. Learning tab-la un notes add pannina, indha prototype andha notes-ai search panni chat-la kaattum. Idhu local demo; full AI model innum connect pannala.");
   }
   saveData();
+  checkForUpdates();
 })();

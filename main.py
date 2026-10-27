@@ -20,7 +20,7 @@ def main() -> None:
 3. Search memory / knowledge
 4. Ask Nila
 5. Add evaluation question
-6. Run evaluation tests
+6. Run evaluation tests (test Nila automatically)
 7. View evaluation report
 8. Generate improvement suggestions
 9. View recent knowledge
@@ -29,44 +29,55 @@ def main() -> None:
             choice = ask("Choose: ")
             if choice == "1":
                 content, tags = ask("Memory: "), ask("Tags (optional): ")
-                if content: print("Saved memory ID:", store.add_memory(content, tags))
+                if content:
+                    print("Saved memory ID:", store.add_memory(content, tags))
             elif choice == "2":
                 title, content = ask("Fact title: "), ask("Fact / lesson: ")
                 source = ask("Source (book, URL, or your note): ") or "user note"
                 verified = ask("Did you verify this source? (y/N): ").lower() == "y"
-                if title and content: print("Saved knowledge ID:", store.add_knowledge(title, content, source, verified))
+                if title and content:
+                    print("Saved knowledge ID:", store.add_knowledge(title, content, source, verified))
             elif choice == "3":
                 results = store.search(ask("Search words: "))
-                if not results: print("No matching records.")
+                if not results:
+                    print("No matching records.")
                 for item in results:
                     print(f"\n#{item['id']} [{item['kind']}] {item['title']}\n{item['content']}\nSource: {item['source']}")
             elif choice == "4":
                 print(answer_from_memory(store, ask("Ask Nila: ")))
             elif choice == "5":
-                question, expected = ask("Test question: "), ask("Expected keywords (use | between alternatives): ")
-                if question and expected: print("Saved test ID:", store.add_eval_case(question, expected))
+                question = ask("Test question: ")
+                expected = ask("Expected keywords (use | between alternatives): ")
+                if question and expected:
+                    print("Saved test ID:", store.add_eval_case(question, expected))
             elif choice == "6":
                 cases = store.eval_cases()
-                if not cases: print("No tests yet. Add evaluation questions first.")
+                if not cases:
+                    print("No tests yet. Add evaluation questions first.")
                 for case in cases:
-                    print(f"\nTest #{case['id']}: {case['question']}")
-                    answer = ask("Answer to evaluate: ")
+                    answer = answer_from_memory(store, case["question"])
                     passed = evaluation_passed(answer, case["expected_keywords"])
                     store.record_eval(case["id"], answer, passed)
+                    print(f"\nQuestion: {case['question']}")
+                    print("Nila:", answer)
                     print("PASS" if passed else "NEEDS REVIEW")
             elif choice == "7":
                 report = store.eval_summary()
                 print(f"Runs: {report['total']} | Passed: {report['passed']} | Accuracy: {report['accuracy']:.1%}")
-                for row in store.failed_runs(): print("\nFailed:", row["question"], "\nAnswer:", row["answer"])
+                for row in store.failed_runs():
+                    print("\nFailed:", row["question"], "\nAnswer:", row["answer"])
             elif choice == "8":
                 print("\nSuggestions for human review:")
-                for idea in suggest_improvements(store): print("-", idea)
+                for idea in suggest_improvements(store):
+                    print("-", idea)
             elif choice == "9":
-                for item in store.recent_knowledge(): print(f"\n#{item['id']} {item['title']} (verified={bool(item['verified'])})\n{item['content']}\nSource: {item['source']}")
+                for item in store.recent_knowledge():
+                    print(f"\n#{item['id']} {item['title']} (verified={bool(item['verified'])})\n{item['content']}\nSource: {item['source']}")
             elif choice == "0":
                 print("Nila session ended. Database is kept at its configured path.")
                 break
-            else: print("Choose a number from 0 to 9.")
+            else:
+                print("Choose a number from 0 to 9.")
     finally:
         store.close()
 

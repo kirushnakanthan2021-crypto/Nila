@@ -15,29 +15,27 @@ permissions:
 
 jobs:
   build-apk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout Nila
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: "20"
-          cache: ""
+          node-version: "22"
 
       - name: Prepare app files
         run: |
           mkdir -p www
           cp index.html styles.css app.js www/
           cp manifest.webmanifest www/ || true
-          # Native Android uses the app shell; service-worker registration is skipped for file://.
           cat > package.json <<'EOF'
           {
             "name": "nila-android",
@@ -74,7 +72,7 @@ jobs:
           ./gradlew assembleDebug
 
       - name: Publish APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Nila-Android-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk

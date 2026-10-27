@@ -34,7 +34,7 @@
           <textarea id="chat-input" rows="1" maxlength="3000" placeholder="Message Nila…" required></textarea>
           <button class="send-btn" type="submit" aria-label="Send message">↑</button>
         </form>
-        <p class="composer-hint">Prototype · No external AI API connected yet</p>
+        <p class="composer-hint" id="connection-hint">Local notes mode · Configure Python backend in Settings to sync with SQLite</p>
       </section>
       <section id="learn-view" class="view" aria-label="Learning and memory">
         <div class="page-heading"><p class="eyebrow">BUILD HER KNOWLEDGE</p><h2>Learning space</h2><p class="subcopy">Add notes that Nila can search when you chat.</p></div>
@@ -53,9 +53,17 @@
       <section id="settings-view" class="view" aria-label="Settings">
         <div class="page-heading"><p class="eyebrow">YOUR WORKSPACE</p><h2>Settings</h2><p class="subcopy">Simple controls for this first mobile version.</p></div>
         <article class="panel setting-row"><div><strong>Install Nila</strong><p>Add Nila to your phone's home screen for an app-like experience.</p></div><button id="install-btn" class="secondary-btn" type="button">Install</button></article>
-        <article class="panel"><h3>Privacy</h3><p class="muted">This prototype saves chat history and knowledge in this browser's local storage. Clearing browser data can erase it. It does not sync with your Python/SQLite engine yet.</p><button id="export-btn" class="secondary-btn full" type="button">Export my data (JSON)</button><label class="import-label" for="import-file">Import a Nila backup</label><input id="import-file" type="file" accept="application/json">
+        <form id="api-form" class="panel">
+          <h3>Python backend connection</h3><p class="muted">Connect this phone app to Nila's Python + SQLite engine hosted on a backend service.</p>
+          <label for="api-url">Backend HTTPS URL</label><input id="api-url" type="url" placeholder="https://your-nila-service.onrender.com" autocomplete="url">
+          <label for="api-token">Private access token</label><input id="api-token" type="password" maxlength="300" placeholder="Paste Render NILA_API_TOKEN" autocomplete="off">
+          <button class="primary-btn" type="submit">Save &amp; test connection</button>
+          <p id="api-status" class="muted" role="status">Not connected. Local mode is active.</p>
+          <p class="muted">Token is saved in this browser on this phone. Don't use this on a shared device or share the token. Never put it in GitHub code.</p>
+        </form>
+        <article class="panel"><h3>Privacy</h3><p class="muted">Chat history stays in this browser. Notes are local unless the Python backend is connected; when connected, newly added notes are also sent to its SQLite database.</p><button id="export-btn" class="secondary-btn full" type="button">Export my data (JSON)</button><label class="import-label" for="import-file">Import a Nila backup</label><input id="import-file" type="file" accept="application/json">
         </article>
-        <article class="panel"><h3>What this version can do</h3><ul class="feature-list"><li>Keep chat history on this device</li><li>Save notes and retrieve related notes in chat</li><li>Export and restore your notes</li><li>Work offline after the first load, where supported</li></ul><p class="muted">It is not yet a full language model and cannot learn autonomously. The Python engine and an AI model can be connected in a later stage.</p></article>
+        <article class="panel"><h3>What this version can do</h3><ul class="feature-list"><li>Keep chat history on this device</li><li>Save notes and retrieve related notes in chat</li><li>Export and restore your notes</li><li>Work offline after the first load, where supported</li><li>Optionally connect to the Python/SQLite retrieval backend</li></ul><p class="muted">This is still a retrieval-based foundation, not a full language model or autonomous learner. No external AI model is connected.</p></article>
       </section>
     </main>
     <nav class="bottom-nav" aria-label="Main navigation">

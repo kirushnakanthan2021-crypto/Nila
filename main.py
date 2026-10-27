@@ -2,7 +2,6 @@
 from nila.store import Store
 from nila.engine import (
     answer_from_memory,
-    answer_with_context,
     evaluation_passed,
     suggest_improvements,
     propose_self_improvements,
@@ -10,6 +9,12 @@ from nila.engine import (
 from nila.learner import learn_from_text, learn_from_url, learn_from_multiple_sources
 from nila.agent import run_agent, agent_create_goal
 from nila.planner import format_plan
+from nila.sandbox import run_python_snippet
+from nila.patcher import (
+    export_proposal_file,
+    write_workspace_file,
+    list_proposal_files,
+)
 from nila import __version__
 import json
 
@@ -21,8 +26,8 @@ def ask(label: str) -> str:
 def main() -> None:
     store = Store()
     print(f"\nNila v{__version__} — advanced personal AI foundation")
-    print("Memory + learning + agent + planner. No model API required for core.")
-    print("Self-generated code is NEVER executed automatically.")
+    print("Memory + learning + agent + planner + gated sandbox.")
+    print("NO autonomous code execution. Sandbox/patch require YOUR approval.")
     try:
         while True:
             print(
@@ -48,6 +53,10 @@ def main() -> None:
 18. View conversation history
 19. Clear conversation history
 20. View recent learning sessions / logs
+21. Sandbox run Python snippet (YOU paste + approve)
+22. Export proposal to workspace/ file
+23. Apply file into workspace/ only (type CONFIRM)
+24. List workspace proposal files
 0.  Exit
 """
             )
@@ -207,6 +216,13 @@ def main() -> None:
                         print("Reason:", p["reason"])
                     if p.get("proposed_code"):
                         print("Code sketch:\n", p["proposed_code"])
+                    if p.get("proposed_code"):
+                        exp = ask("Export this code sketch to workspace/proposals? (y/N): ").lower()
+                        if exp == "y":
+                            info = export_proposal_file(
+                                p["title"], p["description"], p.get("proposed_code") or ""
+                            )
+                            print("Wrote", info["path"])
 
             elif choice == "15":
                 props = store.pending_proposals()
@@ -272,6 +288,84 @@ def main() -> None:
                 print("\n--- Recent logs ---")
                 for log in store.recent_logs(limit=15):
                     print(f"{log['created_at']} [{log['kind']}] {log['detail'][:120]}")
+
+            elif choice == "21":
+                print(
+                    "Sandbox: paste a SHORT pure-Python snippet.\n"
+                    "Blocked: os/system/network/file/exec patterns.\n"
+                    "End with a line containing only END"
+                )
+                lines = []
+                while True:
+                    line = input()
+                    if line.strip() == "END":
+                        break
+                    lines.append(line)
+                code = "\n".join(lines)
+                print("--- Code to run ---")
+                print(code)
+                print("-------------------")
+                ok = ask("Run this in sandbox? Type YES to run: ")
+                if ok != "YES":
+                    print("Cancelled.")
+                else:
+                    result = run_python_snippet(code, timeout_sec=3.0)
+                    store.log_interaction("sandbox_run", result.get("stderr") or result.get("stdout") or "")
+                    if result.get("blocked"):
+                        print("BLOCKED:\n", result.get("stderr"))
+                    else:
+                        print("returncode:", result.get("returncode"))
+                        if result.get("stdout"):
+                            print("stdout:\n", result["stdout"])
+                        if result.get("stderr"):
+                            print("stderr:\n", result["stderr"])
+
+            elif choice == "22":
+                title = ask("Proposal title: ")
+                desc = ask("Description: ")
+                print("Paste code sketch (end with END):")
+                lines = []
+                while True:
+                    line = input()
+                    if line.strip() == "END":
+                        break
+                    lines.append(line)
+                code = "\n".join(lines)
+                if title:
+                    info = export_proposal_file(title, desc, code)
+                    print("Exported:", info["path"])
+                    store.log_interaction("export_proposal", info["path"])
+
+            elif choice == "23":
+                print(
+                    "Write a file UNDER workspace/ only.\n"
+                    "Core nila/, tests/, main.py, api.py are protected and cannot be written."
+                )
+                rel = ask("Relative path (e.g. workspace/scratch.py): ")
+                print("Paste file content (end with END):")
+                lines = []
+                while True:
+                    line = input()
+                    if line.strip() == "END":
+                        break
+                    lines.append(line)
+                content = "\n".join(lines)
+                print("--- Preview (first 500 chars) ---")
+                print(content[:500])
+                conf = ask("Type CONFIRM to write (anything else cancels): ")
+                result = write_workspace_file(rel, content, confirm=conf)
+                if result.get("ok"):
+                    print("Wrote", result["path"])
+                    store.log_interaction("workspace_write", result["path"])
+                else:
+                    print("Failed:", result.get("error"))
+
+            elif choice == "24":
+                files = list_proposal_files()
+                if not files:
+                    print("No proposal files in workspace/proposals yet.")
+                for f in files:
+                    print("-", f)
 
             elif choice == "0":
                 print("Nila session ended. Database is kept at its configured path.")

@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: nila-private-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: NILA_API_TOKEN
+        generateValue: true
+      - key: NILA_ALLOWED_ORIGINS
+        value: "*"

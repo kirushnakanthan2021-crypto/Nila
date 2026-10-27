@@ -16,7 +16,8 @@ class Store:
         Path(self.path).expanduser().parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(self.path)
         self.conn.row_factory = sqlite3.Row
-        self.conn.executescript("""
+        self.conn.executescript(
+            """
         PRAGMA foreign_keys = ON;
 
         CREATE TABLE IF NOT EXISTS memories (
@@ -77,12 +78,38 @@ class Store:
             reason TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
-        """)
-        # lightweight migration for older DBs that lack the topic column
+
+        CREATE TABLE IF NOT EXISTS conversations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            meta TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'open',
+            plan_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS interaction_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kind TEXT NOT NULL,
+            detail TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+        )
         try:
             self.conn.execute("SELECT topic FROM knowledge LIMIT 1")
         except sqlite3.OperationalError:
-            self.conn.execute("ALTER TABLE knowledge ADD COLUMN topic TEXT NOT NULL DEFAULT ''")
+            self.conn.execute(
+                "ALTER TABLE knowledge ADD COLUMN topic TEXT NOT NULL DEFAULT ''"
+            )
         self.conn.commit()
 
     def add_memory(self, content: str, tags: str = "") -> int:
@@ -143,7 +170,6 @@ class Store:
         return [dict(r) for r in list(memories) + list(knowledge)]
 
     def all_items(self, limit: int = 2000) -> list[dict[str, Any]]:
-        """Return a larger pool for ranking (used by the engine)."""
         memories = self.conn.execute(
             "SELECT id,'memory' AS kind,content AS title,content,tags AS source,'' AS topic,created_at "
             "FROM memories ORDER BY id DESC LIMIT ?",
@@ -173,6 +199,10 @@ class Store:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    def knowledge_count(self) -> int:
+        row = self.conn.execute("SELECT COUNT(*) AS c FROM knowledge").fetchone()
+        return int(row["c"])
+
     def add_eval_case(self, question: str, expected_keywords: str) -> int:
         cur = self.conn.execute(
             "INSERT INTO eval_cases(question,expected_keywords) VALUES(?,?)",
@@ -182,7 +212,10 @@ class Store:
         return int(cur.lastrowid)
 
     def eval_cases(self) -> list[dict[str, Any]]:
-        return [dict(r) for r in self.conn.execute("SELECT * FROM eval_cases ORDER BY id").fetchall()]
+        return [
+            dict(r)
+            for r in self.conn.execute("SELECT * FROM eval_cases ORDER BY id").fetchall()
+        ]
 
     def record_eval(self, case_id: int, answer: str, passed: bool) -> None:
         self.conn.execute(
@@ -196,7 +229,11 @@ class Store:
             "SELECT COUNT(*) AS total, COALESCE(SUM(passed),0) AS passed FROM eval_runs"
         ).fetchone()
         total, passed = int(row["total"]), int(row["passed"])
-        return {"total": total, "passed": passed, "accuracy": passed / total if total else 0.0}
+        return {
+            "total": total,
+            "passed": passed,
+            "accuracy": passed / total if total else 0.0,
+        }
 
     def failed_runs(self, limit: int = 10) -> list[dict[str, Any]]:
         rows = self.conn.execute(
@@ -253,6 +290,71 @@ class Store:
             (status.strip(), proposal_id),
         )
         self.conn.commit()
+
+    # --- conversation memory ---
+    def add_message(self, role: str, content: str, meta: str = "") -> int:
+        cur = self.conn.execute(
+            "INSERT INTO conversations(role,content,meta) VALUES(?,?,?)",
+            (role.strip(), content.strip(), meta.strip()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def recent_messages(self, limit: int = 20) -> list[dict[str, Any]]:
+        rows = self.conn.execute(
+            "SELECT * FROM conversations ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return list(reversed([dict(r) for r in rows]))
+
+    def clear_conversation(self) -> None:
+        self.conn.execute("DELETE FROM conversations")
+        self.conn.commit()
+
+    # --- goals / planner ---
+    def add_goal(self, title: str, description: str = "", plan_json: str = "[]") -> int:
+        cur = self.conn.execute(
+            "INSERT INTO goals(title,description,plan_json) VALUES(?,?,?)",
+            (title.strip(), description.strip(), plan_json),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def list_goals(self, status: str | None = "open", limit: int = 20) -> list[dict[str, Any]]:
+        if status:
+            rows = self.conn.execute(
+                "SELECT * FROM goals WHERE status = ? ORDER BY id DESC LIMIT ?",
+                (status, limit),
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT * FROM goals ORDER BY id DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def update_goal(self, goal_id: int, status: str | None = None, plan_json: str | None = None) -> None:
+        if status is not None:
+            self.conn.execute(
+                "UPDATE goals SET status = ? WHERE id = ?", (status, goal_id)
+            )
+        if plan_json is not None:
+            self.conn.execute(
+                "UPDATE goals SET plan_json = ? WHERE id = ?", (plan_json, goal_id)
+            )
+        self.conn.commit()
+
+    def log_interaction(self, kind: str, detail: str = "") -> int:
+        cur = self.conn.execute(
+            "INSERT INTO interaction_logs(kind,detail) VALUES(?,?)",
+            (kind.strip(), detail.strip()[:4000]),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def recent_logs(self, limit: int = 30) -> list[dict[str, Any]]:
+        rows = self.conn.execute(
+            "SELECT * FROM interaction_logs ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     def close(self) -> None:
         self.conn.close()

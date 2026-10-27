@@ -2,12 +2,16 @@
 from nila.store import Store
 from nila.engine import (
     answer_from_memory,
+    answer_with_context,
     evaluation_passed,
     suggest_improvements,
     propose_self_improvements,
 )
 from nila.learner import learn_from_text, learn_from_url, learn_from_multiple_sources
+from nila.agent import run_agent, agent_create_goal
+from nila.planner import format_plan
 from nila import __version__
+import json
 
 
 def ask(label: str) -> str:
@@ -16,30 +20,37 @@ def ask(label: str) -> str:
 
 def main() -> None:
     store = Store()
-    print(f"\nNila v{__version__} — private self-learning foundation")
-    print("Memory + retrieval + learning + evaluation. No API key required.")
+    print(f"\nNila v{__version__} — advanced personal AI foundation")
+    print("Memory + learning + agent + planner. No model API required for core.")
     print("Self-generated code is NEVER executed automatically.")
     try:
         while True:
-            print("""
+            print(
+                """
 --- MENU ---
 1.  Save a memory
 2.  Add a learning fact (manual)
 3.  Search memory / knowledge
-4.  Ask Nila
-5.  Learn from text (paste content)
-6.  Learn from URL
-7.  Learn from multiple sources (URLs or text blocks)
-8.  View recent knowledge / by topic
-9.  Add evaluation question
-10. Run evaluation tests
-11. View evaluation report
-12. Generate improvement suggestions
-13. Propose self-improvements (code ideas for human review)
-14. View pending code proposals
-15. View recent learning sessions
+4.  Ask Nila (retrieval)
+5.  Agent chat (context + gap suggestions)
+6.  Learn from text (paste content)
+7.  Learn from URL
+8.  Learn from multiple sources
+9.  View recent knowledge / by topic
+10. Add evaluation question
+11. Run evaluation tests
+12. View evaluation report
+13. Generate improvement suggestions
+14. Propose self-improvements (human review)
+15. View pending code proposals
+16. Create goal + plan
+17. List goals / plans
+18. View conversation history
+19. Clear conversation history
+20. View recent learning sessions / logs
 0.  Exit
-""")
+"""
+            )
             choice = ask("Choose: ")
 
             if choice == "1":
@@ -70,9 +81,23 @@ def main() -> None:
                     )
 
             elif choice == "4":
-                print(answer_from_memory(store, ask("Ask Nila: ")))
+                q = ask("Ask Nila: ")
+                print(answer_from_memory(store, q))
 
             elif choice == "5":
+                q = ask("Agent chat: ")
+                result = run_agent(store, q)
+                print(result["answer"])
+                if result["retrieved"]:
+                    print("\nRetrieved:")
+                    for r in result["retrieved"]:
+                        print(f"  - {r['title']} (score {r['score']})")
+                if result["suggestions"]:
+                    print("\nSuggestions:")
+                    for s in result["suggestions"]:
+                        print(" -", s)
+
+            elif choice == "6":
                 topic = ask("Topic to learn: ")
                 print("Paste the text (end with a single line containing only END):")
                 lines = []
@@ -90,7 +115,7 @@ def main() -> None:
                     for f in result["facts"]:
                         print("-", f[:120] + ("..." if len(f) > 120 else ""))
 
-            elif choice == "6":
+            elif choice == "7":
                 topic = ask("Topic to learn: ")
                 url = ask("URL: ")
                 verified = ask("Mark facts as verified? (y/N): ").lower() == "y"
@@ -103,7 +128,7 @@ def main() -> None:
                     except Exception as exc:
                         print("Learn failed:", exc)
 
-            elif choice == "7":
+            elif choice == "8":
                 topic = ask("Topic to learn: ")
                 print("Enter sources one per line (URL or long text). Empty line to finish.")
                 sources = []
@@ -125,7 +150,7 @@ def main() -> None:
                     for f in result["facts"][:12]:
                         print("-", f[:120] + ("..." if len(f) > 120 else ""))
 
-            elif choice == "8":
+            elif choice == "9":
                 mode = ask("All recent (a) or by topic (t)? ").lower()
                 if mode.startswith("t"):
                     topic = ask("Topic: ")
@@ -141,13 +166,13 @@ def main() -> None:
                         + (f"\nTopic: {item['topic']}" if item.get("topic") else "")
                     )
 
-            elif choice == "9":
+            elif choice == "10":
                 question = ask("Test question: ")
                 expected = ask("Expected keywords (use | between alternatives): ")
                 if question and expected:
                     print("Saved test ID:", store.add_eval_case(question, expected))
 
-            elif choice == "10":
+            elif choice == "11":
                 cases = store.eval_cases()
                 if not cases:
                     print("No tests yet. Add evaluation questions first.")
@@ -159,7 +184,7 @@ def main() -> None:
                     print("Nila:", answer)
                     print("PASS" if passed else "NEEDS REVIEW")
 
-            elif choice == "11":
+            elif choice == "12":
                 report = store.eval_summary()
                 print(
                     f"Runs: {report['total']} | Passed: {report['passed']} | "
@@ -168,13 +193,13 @@ def main() -> None:
                 for row in store.failed_runs():
                     print("\nFailed:", row["question"], "\nAnswer:", row["answer"])
 
-            elif choice == "12":
+            elif choice == "13":
                 print("\nSuggestions for human review:")
                 for idea in suggest_improvements(store):
                     print("-", idea)
 
-            elif choice == "13":
-                print("\nSelf-improvement proposals (status=pending, for YOUR review only):")
+            elif choice == "14":
+                print("\nSelf-improvement proposals (pending, for YOUR review only):")
                 for p in propose_self_improvements(store):
                     print(f"\n#{p['id']} {p['title']}")
                     print(p["description"])
@@ -183,7 +208,7 @@ def main() -> None:
                     if p.get("proposed_code"):
                         print("Code sketch:\n", p["proposed_code"])
 
-            elif choice == "14":
+            elif choice == "15":
                 props = store.pending_proposals()
                 if not props:
                     print("No pending proposals.")
@@ -192,7 +217,9 @@ def main() -> None:
                     print(p["description"])
                     if p["proposed_code"]:
                         print("Code sketch:\n", p["proposed_code"])
-                    mark = ask("Mark as reviewed/applied/rejected? (r/a/j / Enter=skip): ").lower()
+                    mark = ask(
+                        "Mark as reviewed/applied/rejected? (r/a/j / Enter=skip): "
+                    ).lower()
                     if mark == "r":
                         store.update_proposal_status(p["id"], "reviewed")
                     elif mark == "a":
@@ -200,15 +227,51 @@ def main() -> None:
                     elif mark == "j":
                         store.update_proposal_status(p["id"], "rejected")
 
-            elif choice == "15":
-                sessions = store.recent_learning_sessions()
-                if not sessions:
-                    print("No learning sessions yet.")
-                for s in sessions:
+            elif choice == "16":
+                title = ask("Goal title: ")
+                desc = ask("Description (optional): ")
+                if title:
+                    result = agent_create_goal(store, title, desc)
+                    print(f"\nGoal #{result['id']} created")
+                    print(format_plan(result["plan"]))
+
+            elif choice == "17":
+                goals = store.list_goals(status=None)
+                if not goals:
+                    print("No goals yet.")
+                for g in goals:
+                    print(f"\n#{g['id']} [{g['status']}] {g['title']}")
+                    if g["description"]:
+                        print(g["description"])
+                    try:
+                        plan = json.loads(g["plan_json"] or "[]")
+                        print(format_plan(plan))
+                    except json.JSONDecodeError:
+                        pass
+                    st = ask("Mark complete? (y/N): ").lower()
+                    if st == "y":
+                        store.update_goal(g["id"], status="done")
+
+            elif choice == "18":
+                msgs = store.recent_messages(limit=30)
+                if not msgs:
+                    print("No conversation yet.")
+                for m in msgs:
+                    print(f"[{m['role']}] {m['content'][:300]}")
+
+            elif choice == "19":
+                store.clear_conversation()
+                print("Conversation cleared.")
+
+            elif choice == "20":
+                print("--- Learning sessions ---")
+                for s in store.recent_learning_sessions():
                     print(
-                        f"\n#{s['id']} topic={s['topic']} facts={s['facts_added']}"
-                        f"\n{s['summary']}\nSources: {s['sources_used'][:200]}"
+                        f"#{s['id']} topic={s['topic']} facts={s['facts_added']} | {s['summary']}"
                     )
+                print("\n--- Recent logs ---")
+                for log in store.recent_logs(limit=15):
+                    print(f"{log['created_at']} [{log['kind']}] {log['detail'][:120]}")
 
             elif choice == "0":
                 print("Nila session ended. Database is kept at its configured path.")

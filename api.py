@@ -14,7 +14,11 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from nila import __version__
+from nila.agent import run_agent, agent_create_goal
 from nila.engine import answer_from_memory
+from nila.learner import learn_from_text, learn_from_url
+from nila.planner import format_plan
 from nila.store import Store
 
 API_TOKEN = os.environ.get("NILA_API_TOKEN", "")
@@ -26,7 +30,7 @@ allowed_origins = [
     for item in os.environ.get("NILA_ALLOWED_ORIGINS", "*").split(",")
     if item.strip()
 ]
-app = FastAPI(title="Nila Private API", version="0.1.0")
+app = FastAPI(title="Nila Private API", version=__version__)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -44,6 +48,7 @@ def require_token(authorization: Optional[str] = Header(default=None)) -> None:
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=3000)
+    mode: str = Field(default="agent", description="agent | retrieve")
 
 
 class MemoryRequest(BaseModel):
@@ -59,19 +64,42 @@ class KnowledgeRequest(BaseModel):
     topic: str = Field(default="", max_length=200)
 
 
+class LearnTextRequest(BaseModel):
+    topic: str = Field(min_length=1, max_length=200)
+    text: str = Field(min_length=20, max_length=50000)
+    source: str = Field(default="api text", max_length=1000)
+    verified: bool = False
+
+
+class LearnUrlRequest(BaseModel):
+    topic: str = Field(min_length=1, max_length=200)
+    url: str = Field(min_length=8, max_length=2000)
+    verified: bool = False
+
+
+class GoalRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    description: str = Field(default="", max_length=2000)
+
+
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "service": "Nila API", "version": "0.1.0"}
+    return {"status": "ok", "service": "Nila API", "version": __version__}
 
 
 @app.post("/api/chat", dependencies=[Depends(require_token)])
 def chat(payload: ChatRequest):
     store = Store()
     try:
-        answer = answer_from_memory(store, payload.message)
+        if payload.mode == "retrieve":
+            answer = answer_from_memory(store, payload.message)
+            store.add_message("user", payload.message)
+            store.add_message("assistant", answer, meta="retrieve")
+            return {"answer": answer, "engine": "nila-retrieval", "suggestions": []}
+        result = run_agent(store, payload.message)
+        return result
     finally:
         store.close()
-    return {"answer": answer, "engine": "nila-retrieval-v0.1"}
 
 
 @app.get("/api/knowledge", dependencies=[Depends(require_token)])
@@ -107,3 +135,71 @@ def add_memory(payload: MemoryRequest):
     finally:
         store.close()
     return {"id": item_id, "saved": True}
+
+
+@app.post("/api/learn/text", dependencies=[Depends(require_token)])
+def learn_text(payload: LearnTextRequest):
+    store = Store()
+    try:
+        result = learn_from_text(
+            store,
+            topic=payload.topic,
+            text=payload.text,
+            source=payload.source,
+            verified=payload.verified,
+        )
+        return result
+    finally:
+        store.close()
+
+
+@app.post("/api/learn/url", dependencies=[Depends(require_token)])
+def learn_url(payload: LearnUrlRequest):
+    store = Store()
+    try:
+        result = learn_from_url(
+            store, topic=payload.topic, url=payload.url, verified=payload.verified
+        )
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
+@app.get("/api/search", dependencies=[Depends(require_token)])
+def search(q: str = "", limit: int = 10):
+    store = Store()
+    try:
+        return {"items": store.search(q, limit=min(limit, 50))}
+    finally:
+        store.close()
+
+
+@app.post("/api/goals", dependencies=[Depends(require_token)])
+def create_goal(payload: GoalRequest):
+    store = Store()
+    try:
+        result = agent_create_goal(store, payload.title, payload.description)
+        result["plan_text"] = format_plan(result["plan"])
+        return result
+    finally:
+        store.close()
+
+
+@app.get("/api/goals", dependencies=[Depends(require_token)])
+def list_goals():
+    store = Store()
+    try:
+        return {"goals": store.list_goals(status=None)}
+    finally:
+        store.close()
+
+
+@app.get("/api/conversation", dependencies=[Depends(require_token)])
+def conversation(limit: int = 30):
+    store = Store()
+    try:
+        return {"messages": store.recent_messages(limit=min(limit, 100))}
+    finally:
+        store.close()

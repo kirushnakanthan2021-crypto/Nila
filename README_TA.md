@@ -1,78 +1,51 @@
-# Nila — Private Self-Learning AI Foundation (v0.2)
+# Nila — Advanced Personal AI Foundation (v0.3)
 
-Beginner-friendly Python foundation for memory, knowledge retrieval, learning from sources, evaluation, and controlled improvement proposals. No API key or third-party packages are required (stdlib only).
+Offline-first personal AI: memory, source learning, retrieval, evaluation, conversation context, goal planner, and a safe agent loop.
+
+## What v0.3 adds
+- **Agent chat** — answers with conversation context + knowledge-gap suggestions
+- **Goals + planner** — breaks a goal into reviewable steps
+- **Conversation memory** — recent turns stored in SQLite
+- **Interaction logs**
+- **Better tokenization** — English + Tamil unicode tokens
+- **Multi-note synthesized answers**
+- **Expanded API** — `/api/chat` (agent|retrieve), `/api/learn/text`, `/api/learn/url`, `/api/search`, `/api/goals`, `/api/conversation`
 
 ## Important limits
-This is not AGI/ASI and does not train a neural language model.  
-Nila can:
-- store memories and verified knowledge
-- learn short facts from pasted text or simple web pages
-- answer by retrieving the best matching notes
-- run keyword evaluation tests
-- propose self-improvement ideas (including code sketches)
+This is **not AGI/ASI** and does not train a neural language model by itself.  
+It does **not** auto-edit or execute its own code. Proposals stay `pending` until you review them.
 
-Nila does **not** automatically edit or execute its own code. All proposals stay in the database with status `pending` until a human reviews them.
+## Privacy
+Repo may be public. Never commit DB files, tokens, or personal notes.  
+Use `NILA_DB_PATH` and `NILA_API_TOKEN` as environment variables.
 
-## Privacy warning
-This repository is currently PUBLIC. Anyone may read committed code.  
-Never commit private notes, databases, passwords, API keys, personal data, or environment files.  
-Keep your personal database outside this repository (`NILA_DB_PATH` or `.local/nila.sqlite3`).  
-To make the source private, change visibility in GitHub repository Settings.
+## CLI
+```bash
+python main.py
+```
 
-## Run on a phone using Google Colab
-1. Open https://colab.research.google.com/ and create a notebook.
-2. Run:
+## API
+```bash
+export NILA_API_TOKEN='long-random-secret'
+uvicorn api:app --host 0.0.0.0 --port 8000
+```
 
+## Colab
 ```python
 !git clone https://github.com/kirushnakanthan2021-crypto/Nila.git
 %cd Nila
 !python main.py
-```
-
-3. For tests:
-
-```python
 !python -m unittest discover -s tests -v
 ```
 
-## Keep memory between Colab sessions
-Mount Google Drive first, then set the database path:
-
-```python
-from google.colab import drive
-drive.mount('/content/drive')
-import os
-os.environ['NILA_DB_PATH'] = '/content/drive/MyDrive/NilaData/nila.sqlite3'
-!python main.py
-```
-
-Create the `NilaData` folder if needed. The database must not be committed to GitHub.
-
-## Features (v0.2)
-- SQLite memory + knowledge notebook (with topics)
-- Improved keyword / TF-style retrieval
-- Learn from pasted text
-- Learn from a URL (stdlib HTML text extraction)
-- Learn from multiple sources in one session
-- Evaluation cases + accuracy reports
-- Mistake tracking and human-reviewed improvement suggestions
-- **Self-improvement proposals** stored for manual review (never auto-applied)
-- Learning session history
-- Unit tests
-
-## Suggested learning workflow
-1. Add a few evaluation questions (menu 9).
-2. Run a learning session on a topic (menu 5 / 6 / 7) with reliable sources.
-3. Ask Nila questions (menu 4).
-4. Run evaluation (menu 10) and check the report (menu 11).
-5. Generate proposals (menu 13) and review them yourself (menu 14).
-6. Only after review, manually improve the code if you agree with a proposal.
-
-## Safety rules built into the design
+## Safety rules
 - No `exec` / `eval` of generated code
-- No automatic writing of `.py` files by the learner
-- Proposals are text only, status starts as `pending`
-- You decide what to apply
+- No automatic writing of project `.py` files by the learner/agent
+- Human review required for improvement proposals
 
-Next stages can add better retrieval, embeddings, or optional model adapters.  
-Keep changes tested and reviewed.
+## Suggested workflow
+1. Learn from trusted text/URLs
+2. Ask via Agent chat
+3. Add evaluation questions and measure accuracy
+4. Create goals when you have a project
+5. Review proposals manually

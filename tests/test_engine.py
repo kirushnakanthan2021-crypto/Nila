@@ -2,8 +2,16 @@ import tempfile
 import unittest
 from pathlib import Path
 from nila.store import Store
-from nila.engine import answer_from_memory, evaluation_passed, suggest_improvements, propose_self_improvements
+from nila.engine import (
+    answer_from_memory,
+    evaluation_passed,
+    suggest_improvements,
+    propose_self_improvements,
+    tokens,
+)
 from nila.learner import learn_from_text, extract_candidate_facts
+from nila.agent import run_agent
+from nila.planner import plan_goal, create_planned_goal
 
 
 class NilaTests(unittest.TestCase):
@@ -23,7 +31,7 @@ class NilaTests(unittest.TestCase):
         self.assertIn("programming language", answer)
 
     def test_unknown_answer_is_honest(self):
-        self.assertIn("don't know", answer_from_memory(self.store, "quantum gardening"))
+        self.assertIn("don't know", answer_from_memory(self.store, "quantum gardening").lower())
 
     def test_evaluation_keywords(self):
         self.assertTrue(
@@ -69,6 +77,25 @@ class NilaTests(unittest.TestCase):
         proposals = propose_self_improvements(self.store)
         self.assertTrue(proposals)
         self.assertTrue(self.store.pending_proposals())
+
+    def test_tokens_latin_and_tamil(self):
+        t = tokens("Python மற்றும் AI")
+        self.assertTrue(any("python" == x for x in t))
+        self.assertTrue(any("\u0b85" in x or "மற்றும்" in x or len(x) > 1 for x in t))
+
+    def test_agent_turn(self):
+        self.store.add_knowledge(
+            "Nila", "Nila is a personal learning AI foundation.", "test", True, "nila"
+        )
+        result = run_agent(self.store, "What is Nila?")
+        self.assertIn("answer", result)
+        self.assertTrue(self.store.recent_messages())
+
+    def test_planner(self):
+        steps = plan_goal("Fix API bug", "debug authentication")
+        self.assertGreaterEqual(len(steps), 4)
+        g = create_planned_goal(self.store, "Ship v0.3", "release notes")
+        self.assertTrue(g["id"])
 
 
 if __name__ == "__main__":

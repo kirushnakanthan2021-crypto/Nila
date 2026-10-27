@@ -39,10 +39,9 @@ class _TextExtractor(HTMLParser):
 
 
 def fetch_url_text(url: str, timeout: int = 12, max_chars: int = 12000) -> str:
-    """Fetch a page and return plain text. Stdlib only."""
     req = urllib.request.Request(
         url,
-        headers={"User-Agent": "NilaLearner/0.2 (personal research; contact via GitHub)"},
+        headers={"User-Agent": "NilaLearner/0.3 (personal research; contact via GitHub)"},
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         raw = resp.read()
@@ -59,17 +58,15 @@ def fetch_url_text(url: str, timeout: int = 12, max_chars: int = 12000) -> str:
 
 
 def split_into_sentences(text: str) -> list[str]:
-    # Simple sentence splitter; good enough for offline learning
     parts = re.split(r"(?<=[.!?])\s+", text)
-    return [p.strip() for p in parts if len(p.strip()) > 30]
+    # also split on Tamil danda if present
+    more: list[str] = []
+    for p in parts:
+        more.extend(re.split(r"[\u0964\u0965]", p))
+    return [p.strip() for p in more if len(p.strip()) > 25]
 
 
 def extract_candidate_facts(text: str, topic: str, max_facts: int = 8) -> list[str]:
-    """
-    Heuristic fact extraction:
-    - Prefer sentences that contain topic tokens or look definitional.
-    - Keep them short and readable.
-    """
     topic_tokens = set(tokens(topic))
     sentences = split_into_sentences(text)
     scored: list[tuple[int, str]] = []
@@ -78,9 +75,12 @@ def extract_candidate_facts(text: str, topic: str, max_facts: int = 8) -> list[s
         overlap = len(topic_tokens & stoks)
         lower = s.lower()
         bonus = 0
-        if any(k in lower for k in (" is ", " are ", " means ", " defined as ", " refers to ")):
+        if any(
+            k in lower
+            for k in (" is ", " are ", " means ", " defined as ", " refers to ", " என்பது", " ஆகும்")
+        ):
             bonus += 2
-        if overlap:
+        if overlap or bonus:
             scored.append((overlap + bonus, s))
     scored.sort(key=lambda x: x[0], reverse=True)
     facts = []
@@ -90,7 +90,6 @@ def extract_candidate_facts(text: str, topic: str, max_facts: int = 8) -> list[s
         if key in seen:
             continue
         seen.add(key)
-        # keep fact length reasonable
         facts.append(sent if len(sent) <= 400 else sent[:397] + "...")
         if len(facts) >= max_facts:
             break
@@ -105,7 +104,6 @@ def learn_from_text(
     verified: bool = False,
     max_facts: int = 8,
 ) -> dict:
-    """Extract facts from free text and store them under the given topic."""
     facts = extract_candidate_facts(text, topic, max_facts=max_facts)
     ids = []
     for i, fact in enumerate(facts, start=1):
@@ -125,6 +123,7 @@ def learn_from_text(
         sources_used=source,
         facts_added=len(facts),
     )
+    store.log_interaction("learn_text", f"{topic}:{len(facts)}")
     return {
         "session_id": sid,
         "topic": topic,
@@ -142,7 +141,6 @@ def learn_from_url(
     verified: bool = False,
     max_facts: int = 8,
 ) -> dict:
-    """Fetch a URL, extract text, then learn facts."""
     text = fetch_url_text(url)
     if len(text) < 80:
         raise ValueError("Page text too short or could not be extracted usefully.")
@@ -163,10 +161,6 @@ def learn_from_multiple_sources(
     verified: bool = False,
     max_facts_per_source: int = 5,
 ) -> dict:
-    """
-    sources can be plain text blocks or http(s) URLs.
-    Returns aggregated session info.
-    """
     all_facts: list[str] = []
     all_ids: list[int] = []
     used: list[str] = []
@@ -193,7 +187,7 @@ def learn_from_multiple_sources(
             all_facts.extend(result["facts"])
             all_ids.extend(result["knowledge_ids"])
             used.append(src if len(src) < 120 else src[:117] + "...")
-        except Exception as exc:  # keep learning resilient
+        except Exception as exc:
             errors.append(f"{src[:60]}... -> {exc}")
 
     summary = (

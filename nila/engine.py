@@ -3,23 +3,27 @@ from __future__ import annotations
 import math
 import re
 from .store import Store
+from .embeddings import semantic_score, backend_name as embedding_backend
+from .tamil_templates import (
+    looks_tamil,
+    tpl_need_keywords,
+    tpl_unknown,
+    tpl_low_relevance,
+    tpl_answer_header,
+)
 
 STOPWORDS = {
     "the", "and", "for", "with", "that", "this", "what", "when", "where", "who",
     "are", "was", "is", "a", "an", "to", "of", "in", "on", "my", "your", "it",
     "how", "do", "does", "can", "i", "you", "me", "we", "our", "about", "from",
     "or", "as", "by", "at", "be", "if", "not", "but", "so", "than", "then",
-    # common Tamil function-ish words (romanized + a few native short forms handled via length)
     "enna", "epdi", "eppadi", "yen", "yaar", "enge", "eppo", "oru", "inda",
     "adhu", "idhu", "naan", "neenga", "unga", "ennoda",
 }
 
 
 def tokens(text: str) -> list[str]:
-    """Tokenize Latin words and Tamil unicode syllables/words."""
-    # Latin / digits
     latin = re.findall(r"[a-zA-Z0-9_]+", text.lower())
-    # Tamil block U+0B80–U+0BFF sequences
     tamil = re.findall(r"[\u0B80-\u0BFF]+", text)
     out = []
     for t in latin:
@@ -31,7 +35,7 @@ def tokens(text: str) -> list[str]:
     return out
 
 
-def _score_item(query_tokens: list[str], item: dict) -> float:
+def _keyword_score(query_tokens: list[str], item: dict) -> float:
     if not query_tokens:
         return 0.0
     text = (
@@ -42,8 +46,7 @@ def _score_item(query_tokens: list[str], item: dict) -> float:
     if not item_tokens:
         return 0.0
     qset = set(query_tokens)
-    iset = set(item_tokens)
-    overlap = len(qset & iset)
+    overlap = len(qset & set(item_tokens))
     if overlap == 0:
         return 0.0
     coverage = overlap / len(qset)
@@ -56,11 +59,17 @@ def _score_item(query_tokens: list[str], item: dict) -> float:
 
 def rank_items(store: Store, question: str, limit: int = 8) -> list[tuple[float, dict]]:
     query_tokens = tokens(question)
-    if not query_tokens:
-        return []
     candidates: list[tuple[float, dict]] = []
     for item in store.all_items(limit=1500):
-        score = _score_item(query_tokens, item)
+        kw = _keyword_score(query_tokens, item) if query_tokens else 0.0
+        doc = f"{item.get('title', '')} {item.get('content', '')} {item.get('topic', '')}"
+        sem = semantic_score(question, doc)
+        # hybrid: keyword primary, semantic boost
+        if kw <= 0 and sem < 0.25:
+            continue
+        score = kw * 0.65 + sem * 0.35
+        if item.get("kind") == "knowledge" and item.get("verified"):
+            score *= 1.08
         if score > 0:
             candidates.append((score, item))
     candidates.sort(key=lambda x: x[0], reverse=True)
@@ -68,29 +77,23 @@ def rank_items(store: Store, question: str, limit: int = 8) -> list[tuple[float,
 
 
 def answer_from_memory(store: Store, question: str, top_k: int = 3) -> str:
+    tamil = looks_tamil(question)
     query_tokens = tokens(question)
-    if not query_tokens:
-        return "I need a few meaningful keywords. Please rephrase. / கொஞ்சம் keywords வேணும்."
+    if not query_tokens and not question.strip():
+        return tpl_need_keywords(tamil)
 
     candidates = rank_items(store, question, limit=max(top_k, 5))
     if not candidates:
-        return (
-            "I don't know yet. Add a reliable memory or learning fact first. / "
-            "இன்னும் தெரியல. முதல்ல knowledge add பண்ணுங்க."
-        )
+        return tpl_unknown(tamil)
 
     best_score, best = candidates[0]
-    if best_score < 0.18:
-        return (
-            "I could not find a sufficiently relevant saved note. "
-            "Try learning about this topic first. / இந்த topic-ல learn பண்ணுங்க."
-        )
+    if best_score < 0.16:
+        return tpl_low_relevance(tamil)
 
-    # Synthesize from top notes instead of only dumping one record
-    lines = [f"Answer (retrieval score {best_score:.2f}):"]
+    lines = [tpl_answer_header(best_score, tamil)]
     used = 0
     for sc, it in candidates:
-        if sc < 0.15 and used > 0:
+        if sc < 0.12 and used > 0:
             break
         snippet = it["content"].strip()
         if len(snippet) > 350:
@@ -98,18 +101,18 @@ def answer_from_memory(store: Store, question: str, top_k: int = 3) -> str:
         lines.append(f"• {snippet}")
         src = it.get("source") or ""
         if src:
-            lines.append(f"  source: {src}")
+            lines.append(f"  source: {src}" if not tamil else f"  மூலம்: {src}")
         used += 1
         if used >= top_k:
             break
 
     if best.get("topic"):
-        lines.append(f"Topic: {best['topic']}")
+        lines.append(("Topic: " if not tamil else "தலைப்பு: ") + str(best["topic"]))
+    lines.append(f"[embed:{embedding_backend()}]")
     return "\n".join(lines)
 
 
 def answer_with_context(store: Store, question: str, history_limit: int = 6) -> str:
-    """Use recent conversation turns as soft context for retrieval."""
     history = store.recent_messages(limit=history_limit)
     context_bits = [m["content"] for m in history if m["role"] in ("user", "assistant")]
     blended = " ".join(context_bits[-4:] + [question])
@@ -161,10 +164,7 @@ def propose_self_improvements(store: Store) -> list[dict]:
         proposals.append(
             {
                 "title": "Bootstrap core knowledge",
-                "description": (
-                    "Knowledge base is still thin. Run learning sessions on fundamental topics "
-                    "and mark sources as verified."
-                ),
+                "description": "Knowledge base is still thin. Run learning sessions on fundamental topics.",
                 "proposed_code": "",
                 "reason": f"Only ~{knowledge_count} knowledge items present.",
             }
@@ -175,14 +175,10 @@ def propose_self_improvements(store: Store) -> list[dict]:
             {
                 "title": "Improve retrieval ranking",
                 "description": (
-                    "Accuracy is below 75%. Add more verified notes for failed questions; "
-                    "later optional embeddings can upgrade semantic search."
+                    "Accuracy is below 75%. Add verified notes; optional sentence-transformers "
+                    "via NILA_EMBEDDINGS=st can help semantic match."
                 ),
-                "proposed_code": (
-                    "# Direction only — do not auto-apply:\n"
-                    "# - synonym map for domain terms\n"
-                    "# - optional embedding index\n"
-                ),
+                "proposed_code": "# pip install -r requirements-optional.txt\n# export NILA_EMBEDDINGS=st\n",
                 "reason": f"Current accuracy {summary['accuracy']:.1%} after {summary['total']} runs.",
             }
         )
@@ -200,17 +196,8 @@ def propose_self_improvements(store: Store) -> list[dict]:
     proposals.append(
         {
             "title": "Safety gate for any future code generation",
-            "description": (
-                "Any module that writes or patches source files must require explicit human approval "
-                "and must never call exec/eval on generated code."
-            ),
-            "proposed_code": (
-                "# Policy:\n"
-                "# 1. Generate proposal text\n"
-                "# 2. Store pending in proposed_changes\n"
-                "# 3. Human reviews\n"
-                "# 4. Never auto-write or execute generated code\n"
-            ),
+            "description": "Never exec/eval model output; proposals stay pending until human review.",
+            "proposed_code": "# Policy unchanged in v0.4\n",
             "reason": "Hard safety rule for self-learning systems.",
         }
     )

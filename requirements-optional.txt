@@ -1,0 +1,8 @@
+# Optional extras — install only if you want these features.
+# Core Nila still runs with: pip install -r requirements.txt
+#
+# Semantic embeddings (local model, downloads weights on first use):
+sentence-transformers>=3.0,<4.0
+#
+# Note: OpenAI-compatible LLM hook uses Python stdlib urllib only —
+# no extra package required. Configure via env vars (see README_TA.md).

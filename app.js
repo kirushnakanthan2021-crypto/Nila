@@ -10,7 +10,7 @@
   async function apiRequest(path, options = {}) {
     const cfg = apiConfig();
     if (!cfg.url || !cfg.token) throw new Error("Backend URL/token not configured");
-    const response = await fetch(cfg.url.replace(/\\/$/, "") + path, { ...options, headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfg.token, ...(options.headers || {}) } });
+    const response = await fetch(cfg.url.replace(/\/$/, "") + path, { ...options, headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfg.token, ...(options.headers || {}) } });
     if (!response.ok) throw new Error("Backend returned HTTP " + response.status);
     return response.json();
   }
@@ -114,7 +114,7 @@
 
   $("api-form").addEventListener("submit", async e => {
     e.preventDefault();
-    const url = $("api-url").value.trim().replace(/\\/$/, "");
+    const url = $("api-url").value.trim().replace(/\/$/, "");
     const token = $("api-token").value.trim();
     if (!url || !token) { setApiStatus("Enter both backend URL and access token."); return; }
     if (!url.startsWith("https://")) { setApiStatus("Use an HTTPS backend URL."); return; }

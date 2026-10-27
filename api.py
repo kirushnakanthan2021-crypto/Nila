@@ -19,6 +19,7 @@ from nila.agent import run_agent, agent_create_goal
 from nila.engine import answer_from_memory
 from nila.learner import learn_from_text, learn_from_url
 from nila.planner import format_plan
+from nila.stats import collect_stats
 from nila.store import Store
 
 API_TOKEN = os.environ.get("NILA_API_TOKEN", "")
@@ -85,6 +86,15 @@ class GoalRequest(BaseModel):
 @app.get("/api/health")
 def health():
     return {"status": "ok", "service": "Nila API", "version": __version__}
+
+
+@app.get("/api/stats", dependencies=[Depends(require_token)])
+def stats():
+    store = Store()
+    try:
+        return collect_stats(store)
+    finally:
+        store.close()
 
 
 @app.post("/api/chat", dependencies=[Depends(require_token)])

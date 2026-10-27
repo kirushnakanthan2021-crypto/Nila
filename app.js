@@ -6,7 +6,7 @@
   let installPrompt = null;
   const API_KEY = "nila.api.config.v1";
   function apiConfig() { try { return JSON.parse(localStorage.getItem(API_KEY) || "{}"); } catch { return {}; } }
-  function setApiStatus(message) { const el = $("api-status"); if (el) el.textContent = message; const hint = $("connection-hint"); if (hint) hint.textContent = apiConfig().url ? "Python backend configured · Replies use Nila's SQLite retrieval engine when online" : "Local notes mode · Configure Python backend in Settings to sync with SQLite"; }
+  function setApiStatus(message) { const el = $("api-status"); if (el) el.textContent = message; const hint = $("connection-hint"); if (hint) hint.textContent = apiConfig().url ? "Python backend configured · Replies use Nila agent + SQLite when online" : "Local notes mode · Configure Python backend in Settings to sync with SQLite"; }
   async function apiRequest(path, options = {}) {
     const cfg = apiConfig();
     if (!cfg.url || !cfg.token) throw new Error("Backend URL/token not configured");
@@ -64,15 +64,15 @@
     }).filter(x => x.score > 0).sort((a,b) => b.score-a.score).slice(0,3);
     const lower = question.toLowerCase();
     if (/what can you do|help|enna pann|what are you/.test(lower)) {
-      return "Naan Nila-oda first mobile prototype, chellam. Ippo indha phone browser-la chat history save pannalaam, Learning tab-la notes teach pannalaam, and un question-ku match aagura saved notes retrieve pannalaam. Idhu innum full language-model AI illa; OpenAI/Gemini/Claude API-um Python SQLite engine-um connect pannala.";
+      return "Naan Nila mobile app, chellam. Chat + Learning notes + optional Python backend (agent retrieval). Full AGI model illa — saved knowledge + SQLite engine.";
     }
     if (/teach|learn|note|knowledge|eppadi.*save/.test(lower)) {
-      return "Learning tab open panni Note title + content enter panni “Save to Nila's knowledge” press pannu, chellam. Apram Chat-la andha topic pathi kelvi kelu. Naan saved notes-la irundhu matching content theduven.";
+      return "Learning tab open panni Note title + content save pannu. Backend connect pannina SQLite-kum sync aagum.";
     }
     if (scored.length) {
-      return "Un saved notes-la idhoda related information kidaichirukku, chellam:\n\n" + scored.map((x,i) => (i+1) + ". " + x.note.title + "\n" + x.note.content).join("\n\n") + "\n\nIdhu saved-note retrieval mattum; exact answer note-la illa na sollu, note-ai improve pannalaam.";
+      return "Un saved notes-la related info:\n\n" + scored.map((x,i) => (i+1) + ". " + x.note.title + "\n" + x.note.content).join("\n\n");
     }
-    return "Chellam, indha kelvikku match aagura note innum en knowledge-la illa. Learning tab-la indha topic-ai note-aa save pannu; appuram naan adha search panni eduththu tharen. Ippo external AI model connect aagala, so saved notes-ku veliya irukkura kelvigalukku reliable answer generate panna mudiyadhu.";
+    return "Match aagura note illa. Learning tab-la topic save pannu, or backend connect panni learn sessions run pannu.";
   }
   async function send(text) {
     const clean = text.trim(); if (!clean) return;
@@ -82,8 +82,12 @@
     $("chat-input").value = ""; $("chat-input").style.height = "auto";
     $("suggestions").hidden = true;
     try {
-      const result = await apiRequest("/api/chat", { method: "POST", body: JSON.stringify({ message: clean }) });
-      data.messages[answerIndex].text = result.answer || "Backend returned an empty answer.";
+      const result = await apiRequest("/api/chat", { method: "POST", body: JSON.stringify({ message: clean, mode: "agent" }) });
+      let reply = result.answer || "Backend returned an empty answer.";
+      if (Array.isArray(result.suggestions) && result.suggestions.length) {
+        reply += "\n\nSuggestions:\n- " + result.suggestions.join("\n- ");
+      }
+      data.messages[answerIndex].text = reply;
       setApiStatus("Connected · " + (result.engine || "Nila Python engine"));
     } catch (err) {
       data.messages[answerIndex].text = answerFor(clean);
@@ -117,17 +121,19 @@
     const url = $("api-url").value.trim().replace(/\/$/, "");
     const token = $("api-token").value.trim();
     if (!url || !token) { setApiStatus("Enter both backend URL and access token."); return; }
-    if (!url.startsWith("https://")) { setApiStatus("Use an HTTPS backend URL."); return; }
+    if (!url.startsWith("https://") && !url.startsWith("http://localhost") && !url.startsWith("http://127.0.0.1")) {
+      setApiStatus("Use HTTPS (or localhost for testing)."); return;
+    }
     localStorage.setItem(API_KEY, JSON.stringify({ url, token }));
     setApiStatus("Testing secure connection…");
     try {
       const health = await fetch(url + "/api/health");
       if (!health.ok) throw new Error("Health check failed: HTTP " + health.status);
-      const test = await apiRequest("/api/chat", { method: "POST", body: JSON.stringify({ message: "connection test" }) });
+      const test = await apiRequest("/api/chat", { method: "POST", body: JSON.stringify({ message: "connection test", mode: "agent" }) });
       setApiStatus("Connected successfully · " + (test.engine || "Nila Python engine"));
       toast("Nila Python backend connected, chellam!");
     } catch (err) {
-      setApiStatus("Could not connect. Check the HTTPS URL, token, CORS settings, and whether the server is awake.");
+      setApiStatus("Could not connect. Check the URL, token, CORS settings, and whether the server is awake.");
     }
   });
   $("clear-notes").addEventListener("click", () => {
@@ -157,7 +163,6 @@
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
     window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
   }
-  // Check GitHub Releases for a newer APK. Version is embedded by the APK build workflow.
   const REPO_RELEASES_API = "https://api.github.com/repos/kirushnakanthan2021-crypto/Nila/releases/latest";
   let availableApkUrl = "";
   async function checkForUpdates() {
@@ -184,17 +189,14 @@
         else window.open(release.html_url, "_blank", "noopener");
       };
       $("dismiss-update").onclick = () => { banner.hidden = true; };
-      if ("Notification" in window && Notification.permission === "granted") {
-        try { new Notification("Nila update available", { body: "A new Nila APK is ready to install." }); } catch {}
-      }
-    } catch { /* Offline or GitHub API unavailable; keep Nila usable. */ }
+    } catch { /* offline */ }
   }
   const savedConfig = apiConfig();
   if ($("api-url")) $("api-url").value = savedConfig.url || "";
   if ($("api-token")) $("api-token").value = savedConfig.token || "";
   if (savedConfig.url) setApiStatus("Backend configured. Press Save & test connection to verify.");
   if (!data.messages.length) {
-    addMessage("assistant", "Vanakkam, chellam 💙 Naan Nila. Learning tab-la un notes add pannina, indha prototype andha notes-ai search panni chat-la kaattum. Idhu local demo; full AI model innum connect pannala.");
+    addMessage("assistant", "Vanakkam, chellam 💙 Naan Nila v0.3. Backend connect pannina agent + SQLite use aagum. Local notes mode-um work aagum.");
   }
   saveData();
   checkForUpdates();

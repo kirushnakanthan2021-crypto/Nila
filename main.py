@@ -15,8 +15,11 @@ from nila.patcher import (
     write_workspace_file,
     list_proposal_files,
 )
+from nila.backup import export_knowledge_json, import_knowledge_json
+from nila.stats import collect_stats, format_stats
 from nila import __version__
 import json
+from pathlib import Path
 
 
 def ask(label: str) -> str:
@@ -26,7 +29,7 @@ def ask(label: str) -> str:
 def main() -> None:
     store = Store()
     print(f"\nNila v{__version__} — advanced personal AI foundation")
-    print("Memory + learning + agent + planner + gated sandbox.")
+    print("Memory + learning + agent + planner + gated sandbox + backup.")
     print("NO autonomous code execution. Sandbox/patch require YOUR approval.")
     try:
         while True:
@@ -57,6 +60,9 @@ def main() -> None:
 22. Export proposal to workspace/ file
 23. Apply file into workspace/ only (type CONFIRM)
 24. List workspace proposal files
+25. Show Nila stats dashboard
+26. Export knowledge backup (JSON)
+27. Import knowledge backup (JSON)
 0.  Exit
 """
             )
@@ -310,7 +316,9 @@ def main() -> None:
                     print("Cancelled.")
                 else:
                     result = run_python_snippet(code, timeout_sec=3.0)
-                    store.log_interaction("sandbox_run", result.get("stderr") or result.get("stdout") or "")
+                    store.log_interaction(
+                        "sandbox_run", result.get("stderr") or result.get("stdout") or ""
+                    )
                     if result.get("blocked"):
                         print("BLOCKED:\n", result.get("stderr"))
                     else:
@@ -366,6 +374,24 @@ def main() -> None:
                     print("No proposal files in workspace/proposals yet.")
                 for f in files:
                     print("-", f)
+
+            elif choice == "25":
+                print(format_stats(collect_stats(store)))
+
+            elif choice == "26":
+                default = str(Path("workspace") / "nila_knowledge_backup.json")
+                path = ask(f"Export path [{default}]: ") or default
+                info = export_knowledge_json(store, path)
+                print(f"Exported {info['count']} knowledge items -> {info['path']}")
+
+            elif choice == "27":
+                path = ask("Import JSON path: ")
+                if path:
+                    try:
+                        info = import_knowledge_json(store, path)
+                        print(f"Added {info['added']}, skipped {info['skipped']}")
+                    except Exception as exc:
+                        print("Import failed:", exc)
 
             elif choice == "0":
                 print("Nila session ended. Database is kept at its configured path.")

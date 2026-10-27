@@ -1,0 +1,11 @@
+{
+  "name": "Nila — Personal AI",
+  "short_name": "Nila",
+  "description": "A private personal AI learning prototype",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#080d20",
+  "theme_color": "#080d20",
+  "orientation": "portrait"
+}

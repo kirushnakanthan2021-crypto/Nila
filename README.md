@@ -1,6 +1,6 @@
 # Nila
 
-Nila is a personal AI learning project. The Python CLI engine stores knowledge in SQLite and evaluates retrieval quality; the mobile PWA is a separate first-stage prototype.
+Nila is a personal AI learning project. The Python CLI engine stores knowledge in SQLite, learns from text/URL sources, evaluates retrieval quality, and produces **human-reviewed** improvement proposals. The mobile PWA is a separate first-stage prototype.
 
 ## Mobile app (PWA)
 
@@ -9,9 +9,16 @@ Nila is a personal AI learning project. The Python CLI engine stores knowledge i
 - Mobile chat and saved notes are stored in the browser on the device. This first version does not yet connect to the Python/SQLite engine or an external language model.
 - Never put API keys or secrets in frontend files or commit personal data.
 
-## Python engine
+## Python engine (v0.2)
 
-See [README_TA.md](./README_TA.md) for the Python engine setup and usage.
+See [README_TA.md](./README_TA.md) for the full Python engine setup, learning workflow, and safety rules.
+
+Key capabilities:
+- Offline memory + knowledge store
+- Learn facts from pasted text or simple web pages
+- Retrieval-based answers with improved scoring
+- Evaluation harness
+- Controlled self-improvement proposals (never auto-executed)
 
 ## GitHub Pages
 

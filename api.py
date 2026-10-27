@@ -66,20 +66,27 @@ def health():
 
 @app.post("/api/chat", dependencies=[Depends(require_token)])
 def chat(payload: ChatRequest):
-    with Store() as store:
+    store = Store()
+    try:
         answer = answer_from_memory(store, payload.message)
+    finally:
+        store.close()
     return {"answer": answer, "engine": "nila-retrieval-v0.1"}
 
 
 @app.get("/api/knowledge", dependencies=[Depends(require_token)])
 def list_knowledge():
-    with Store() as store:
+    store = Store()
+    try:
         return {"items": store.recent_knowledge(limit=100)}
+    finally:
+        store.close()
 
 
 @app.post("/api/knowledge", dependencies=[Depends(require_token)])
 def add_knowledge(payload: KnowledgeRequest):
-    with Store() as store:
+    store = Store()
+    try:
         item_id = store.add_knowledge(
             title=payload.title,
             content=payload.content,
@@ -87,11 +94,16 @@ def add_knowledge(payload: KnowledgeRequest):
             verified=payload.verified,
             topic=payload.topic,
         )
+    finally:
+        store.close()
     return {"id": item_id, "saved": True}
 
 
 @app.post("/api/memory", dependencies=[Depends(require_token)])
 def add_memory(payload: MemoryRequest):
-    with Store() as store:
+    store = Store()
+    try:
         item_id = store.add_memory(payload.content, payload.tags)
+    finally:
+        store.close()
     return {"id": item_id, "saved": True}

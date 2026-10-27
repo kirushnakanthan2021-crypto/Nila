@@ -6,7 +6,9 @@ Nila is a personal AI learning project. The Python CLI engine stores knowledge i
 
 - App files: `index.html`, `app.js`, `styles.css`, `manifest.webmanifest`, and `sw.js`.
 - Setup guide in Tamil: [PWA_SETUP_TA.md](./PWA_SETUP_TA.md).
-- Mobile chat and saved notes are stored in the browser on the device. This first version does not yet connect to the Python/SQLite engine or an external language model.
+- Mobile chat history is stored in the browser. The app can now connect to the authenticated Python/SQLite retrieval API when deployed.
+- Backend setup: [API_SETUP_TA.md](./API_SETUP_TA.md). Render Blueprint: `render.yaml`; API: `api.py`.
+- The app uses local-note retrieval when no backend is configured or the backend is unavailable. No external language model is connected.
 - Never put API keys or secrets in frontend files or commit personal data.
 
 ## Python engine (v0.2)

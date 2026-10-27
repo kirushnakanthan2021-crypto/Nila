@@ -1,0 +1,82 @@
+name: Build Nila Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "index.html"
+      - "styles.css"
+      - "app.js"
+      - "manifest.webmanifest"
+      - ".github/workflows/build-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Nila
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ""
+
+      - name: Prepare app files
+        run: |
+          mkdir -p www
+          cp index.html styles.css app.js www/
+          cp manifest.webmanifest www/ || true
+          # Native Android uses the app shell; service-worker registration is skipped for file://.
+          cat > package.json <<'EOF'
+          {
+            "name": "nila-android",
+            "version": "1.0.0",
+            "private": true,
+            "description": "Nila personal AI Android wrapper",
+            "scripts": {
+              "build:android": "cap sync android"
+            }
+          }
+          EOF
+          cat > capacitor.config.json <<'EOF'
+          {
+            "appId": "com.nila.personalai",
+            "appName": "Nila",
+            "webDir": "www",
+            "server": {
+              "androidScheme": "https"
+            }
+          }
+          EOF
+
+      - name: Install Capacitor
+        run: npm install @capacitor/core@6 @capacitor/android@6 @capacitor/cli@6
+
+      - name: Generate Android project
+        run: npx cap add android
+
+      - name: Build debug APK
+        run: |
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Publish APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nila-Android-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

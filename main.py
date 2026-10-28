@@ -17,6 +17,8 @@ from nila.patcher import (
 )
 from nila.backup import export_knowledge_json, import_knowledge_json
 from nila.stats import collect_stats, format_stats
+from nila.council import run_council, format_council_result
+from nila.llm import list_providers, llm_configured
 from nila import __version__
 import json
 from pathlib import Path
@@ -29,8 +31,12 @@ def ask(label: str) -> str:
 def main() -> None:
     store = Store()
     print(f"\nNila v{__version__} — advanced personal AI foundation")
-    print("Memory + learning + agent + planner + gated sandbox + backup.")
+    print("Memory + learning + agent + multi-AI council + gated sandbox.")
     print("NO autonomous code execution. Sandbox/patch require YOUR approval.")
+    if llm_configured():
+        print("LLM providers:", ", ".join(p["name"] for p in list_providers()))
+    else:
+        print("LLM: not configured (optional). Set NILA_LLM_PROVIDERS for council.")
     try:
         while True:
             print(
@@ -63,6 +69,7 @@ def main() -> None:
 25. Show Nila stats dashboard
 26. Export knowledge backup (JSON)
 27. Import knowledge backup (JSON)
+28. Multi-AI council (ALL keys discuss in parallel)
 0.  Exit
 """
             )
@@ -392,6 +399,21 @@ def main() -> None:
                         print(f"Added {info['added']}, skipped {info['skipped']}")
                     except Exception as exc:
                         print("Import failed:", exc)
+
+            elif choice == "28":
+                if not llm_configured():
+                    print(
+                        "Configure multi keys first, e.g.:\n"
+                        "  export NILA_LLM_PROVIDERS='[{\"name\":\"groq\",...}, ...]'\n"
+                        "See README_OPTIONAL.md"
+                    )
+                else:
+                    print("Providers:", ", ".join(p["name"] for p in list_providers()))
+                    q = ask("Council question: ")
+                    if q:
+                        print("Calling ALL providers in parallel...")
+                        result = run_council(store, q, synthesize=True)
+                        print(format_council_result(result))
 
             elif choice == "0":
                 print("Nila session ended. Database is kept at its configured path.")

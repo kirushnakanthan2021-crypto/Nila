@@ -16,8 +16,10 @@ from pydantic import BaseModel, Field
 
 from nila import __version__
 from nila.agent import run_agent, agent_create_goal
+from nila.council import run_council
 from nila.engine import answer_from_memory
 from nila.learner import learn_from_text, learn_from_url
+from nila.llm import list_providers, llm_configured
 from nila.planner import format_plan
 from nila.stats import collect_stats
 from nila.store import Store
@@ -50,6 +52,11 @@ def require_token(authorization: Optional[str] = Header(default=None)) -> None:
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=3000)
     mode: str = Field(default="agent", description="agent | retrieve")
+
+
+class CouncilRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=3000)
+    synthesize: bool = True
 
 
 class MemoryRequest(BaseModel):
@@ -85,7 +92,13 @@ class GoalRequest(BaseModel):
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "service": "Nila API", "version": __version__}
+    return {
+        "status": "ok",
+        "service": "Nila API",
+        "version": __version__,
+        "llm_configured": llm_configured(),
+        "providers": list_providers(),
+    }
 
 
 @app.get("/api/stats", dependencies=[Depends(require_token)])
@@ -107,6 +120,18 @@ def chat(payload: ChatRequest):
             store.add_message("assistant", answer, meta="retrieve")
             return {"answer": answer, "engine": "nila-retrieval", "suggestions": []}
         result = run_agent(store, payload.message)
+        return result
+    finally:
+        store.close()
+
+
+@app.post("/api/council", dependencies=[Depends(require_token)])
+def council(payload: CouncilRequest):
+    store = Store()
+    try:
+        result = run_council(store, payload.message, synthesize=payload.synthesize)
+        if not result.get("ok") and result.get("error"):
+            raise HTTPException(status_code=400, detail=result["error"])
         return result
     finally:
         store.close()

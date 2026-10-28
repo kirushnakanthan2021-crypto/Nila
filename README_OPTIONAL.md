@@ -1,39 +1,39 @@
-# Nila optional features (v0.4)
+# Nila optional features (v0.5)
 
-## 1. Embeddings
+## Multi-AI council (all keys in one turn)
 
-Default uses **hash embeddings** (no install).
+Set several OpenAI-compatible providers. Nila calls **all of them in parallel**, shows each voice, then merges into one final answer.
 
-Better semantic search:
+```bash
+export NILA_LLM_PROVIDERS='[
+  {"name":"groq","base_url":"https://api.groq.com/openai/v1","api_key":"gsk_YOUR_KEY","model":"llama-3.1-8b-instant"},
+  {"name":"openrouter","base_url":"https://openrouter.ai/api/v1","api_key":"sk-or-YOUR_KEY","model":"meta-llama/llama-3.3-70b-instruct:free"},
+  {"name":"gemini","base_url":"https://generativelanguage.googleapis.com/v1beta/openai/","api_key":"YOUR_GEMINI_KEY","model":"gemini-2.5-flash"}
+]'
+```
+
+CLI: menu **28**  
+API: `POST /api/council` with `{"message":"...", "synthesize": true}`
+
+**Never commit keys.** Use shell env or a local `.env` ignored by git.
+
+### Single provider (still works)
+
+```bash
+export NILA_LLM_BASE_URL=https://api.groq.com/openai/v1
+export NILA_LLM_API_KEY=gsk_...
+export NILA_LLM_MODEL=llama-3.1-8b-instant
+```
+
+## Embeddings
 
 ```bash
 pip install -r requirements-optional.txt
 export NILA_EMBEDDINGS=st
-# optional model override:
-# export NILA_ST_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 ```
 
-Disable: `export NILA_EMBEDDINGS=off`
+Default without install: hash embeddings.
 
-## 2. OpenAI-compatible LLM
+## Safety
 
-Works with OpenAI, Groq, Together, Ollama (OpenAI mode), vLLM, etc.
-
-```bash
-export NILA_LLM_BASE_URL=https://api.openai.com/v1
-export NILA_LLM_API_KEY=sk-...
-export NILA_LLM_MODEL=gpt-4o-mini
-# optional:
-# export NILA_LLM_MAX_TOKENS=512
-# export NILA_LLM_AGENT=1   # set 0 to disable LLM in agent
-```
-
-Agent will RAG-polish answers using retrieved notes only. **Never put keys in the repo.**
-
-## 3. Tamil templates
-
-Automatic Tanglish/Tamil phrasing when the user message looks Tamil.
-
-## 4. Learn reminders
-
-Use Grok Automations (daily) — created separately in chat — or set your own cron reminding you to run a Nila learn session.
+Council discusses and answers. It does **not** auto-edit core Nila code.

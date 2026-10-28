@@ -58,6 +58,33 @@
         <div class="section-row"><h3>Saved knowledge</h3><button id="clear-notes" class="text-btn" type="button">Clear all</button></div>
         <div id="knowledge-list" class="knowledge-list"></div>
       </section>
+      <section id="security-view" class="view" aria-label="Ethical security lab">
+        <div class="page-heading"><p class="eyebrow">AUTHORIZED SECURITY RESEARCH</p><h2>Security Lab</h2><p class="subcopy">Learn advanced bug-hunting methodology and build a repeatable checklist for systems you own or are explicitly authorized to test.</p></div>
+        <article class="panel security-warning"><strong>Scope first, always</strong><p class="muted">This lab does not scan or send requests to the URL you enter. It creates a local testing plan only. Test only assets covered by written permission and the agreed scope.</p></article>
+        <form id="security-scope-form" class="panel">
+          <h3>Define your authorized target</h3>
+          <label for="security-target">Target URL or project name</label><input id="security-target" type="text" maxlength="300" placeholder="https://staging.example.com or My local lab" required>
+          <label for="security-scope">Permission / scope notes</label><textarea id="security-scope" rows="3" maxlength="1200" placeholder="I own this app; staging host only; no production data; testing window…"></textarea>
+          <label class="scope-check"><input id="security-authorized" type="checkbox" required> I own this target or have explicit permission to test it.</label>
+          <label class="scope-check"><input id="security-safe-mode" type="checkbox" checked> Keep this as a non-invasive checklist; no network requests or exploit execution.</label>
+          <button class="primary-btn" type="submit">Create testing checklist</button>
+          <p class="muted" id="security-scope-status" role="status">No target checklist created yet.</p>
+        </form>
+        <div class="section-row"><h3>Choose review areas</h3><span class="muted">OWASP-aligned</span></div>
+        <div id="security-topics" class="security-topics">
+          <label class="security-topic"><input type="checkbox" value="surface" checked><span><strong>Attack-surface inventory</strong><small>Hosts, routes, APIs, exposed files, technology inventory</small></span></label>
+          <label class="security-topic"><input type="checkbox" value="auth" checked><span><strong>Authentication &amp; sessions</strong><small>MFA, reset flows, cookies, session expiry, logout</small></span></label>
+          <label class="security-topic"><input type="checkbox" value="access" checked><span><strong>Authorization / IDOR</strong><small>Role matrix, object ownership, tenant isolation</small></span></label>
+          <label class="security-topic"><input type="checkbox" value="input" checked><span><strong>Input handling</strong><small>Validation, output encoding, injection-resistant design</small></span></label>
+          <label class="security-topic"><input type="checkbox" value="config" checked><span><strong>Configuration &amp; secrets</strong><small>Headers, TLS, debug mode, secret exposure</small></span></label>
+          <label class="security-topic"><input type="checkbox" value="api" checked><span><strong>API &amp; business logic</strong><small>Rate limits, schema validation, workflow abuse cases</small></span></label>
+          <label class="security-topic"><input type="checkbox" value="deps" checked><span><strong>Dependencies &amp; source review</strong><small>Known vulnerable packages, unsafe patterns, code review</small></span></label>
+          <label class="security-topic"><input type="checkbox" value="ai"><span><strong>AI / LLM application security</strong><small>Prompt injection, tool permissions, data leakage, evals</small></span></label>
+        </div>
+        <div class="section-row"><h3>Generated checklist</h3><button id="security-export" class="text-btn" type="button">Export report</button></div>
+        <div id="security-checklist" class="security-checklist"><div class="empty">Create a scoped checklist to start.</div></div>
+        <article class="panel"><h3>Learning path</h3><ol class="security-learning"><li>Threat model: assets, trust boundaries, entry points and impact.</li><li>Review source and dependencies before dynamic testing.</li><li>Test one hypothesis at a time in staging with test accounts and synthetic data.</li><li>Record evidence, impact, reproducible steps and remediation.</li><li>Retest the fix and add a regression test.</li></ol><p class="muted">Reference: <a href="https://owasp.org/projects/web-security-testing-guide" target="_blank" rel="noopener noreferrer">OWASP Web Security Testing Guide</a>.</p></article>
+      </section>
       <section id="settings-view" class="view" aria-label="Settings">
         <div class="page-heading"><p class="eyebrow">YOUR WORKSPACE</p><h2>Settings</h2><p class="subcopy">Simple controls for this first mobile version.</p></div>
         <article class="panel setting-row"><div><strong>Install Nila</strong><p>Add Nila to your phone's home screen for an app-like experience.</p></div><button id="install-btn" class="secondary-btn" type="button">Install</button></article>
@@ -77,10 +104,12 @@
     <nav class="bottom-nav" aria-label="Main navigation">
       <button class="nav-item selected" data-view="chat-view"><span>◉</span><small>Chat</small></button>
       <button class="nav-item" data-view="learn-view"><span>✧</span><small>Learn</small></button>
+      <button class="nav-item" data-view="security-view"><span>⌁</span><small>Security Lab</small></button>
       <button class="nav-item" data-view="settings-view"><span>⚙</span><small>Settings</small></button>
     </nav>
     <div id="toast" class="toast" role="status"></div>
   </div>
   <script src="./app.js" defer></script>
+  <script src="./security-lab.js" defer></script>
 </body>
 </html>

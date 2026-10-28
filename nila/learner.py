@@ -12,6 +12,7 @@ from html.parser import HTMLParser
 from typing import Iterable
 from .store import Store
 from .security import validate_public_http_url
+from .brain import is_duplicate_fact
 from .engine import tokens
 
 
@@ -107,8 +108,10 @@ def learn_from_text(
     max_facts: int = 8,
 ) -> dict:
     facts = extract_candidate_facts(text, topic, max_facts=max_facts)
+    existing = [str(item.get("content", "")) for item in store.all_items(limit=2000)]
+    unique_facts = [fact for fact in facts if not is_duplicate_fact(fact, existing)]
     ids = []
-    for i, fact in enumerate(facts, start=1):
+    for i, fact in enumerate(unique_facts, start=1):
         title = f"{topic} — fact {i}"
         kid = store.add_knowledge(
             title=title,
@@ -118,20 +121,20 @@ def learn_from_text(
             topic=topic,
         )
         ids.append(kid)
-    summary = f"Extracted {len(facts)} candidate facts from provided text."
+    summary = f"Extracted {len(facts)} candidate facts; skipped {len(facts) - len(unique_facts)} duplicates."
     sid = store.add_learning_session(
         topic=topic,
         summary=summary,
         sources_used=source,
-        facts_added=len(facts),
+        facts_added=len(unique_facts),
     )
     store.log_interaction("learn_text", f"{topic}:{len(facts)}")
     return {
         "session_id": sid,
         "topic": topic,
-        "facts_added": len(facts),
+        "facts_added": len(unique_facts),
         "knowledge_ids": ids,
-        "facts": facts,
+        "facts": unique_facts,
         "summary": summary,
     }
 

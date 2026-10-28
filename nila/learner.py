@@ -11,6 +11,7 @@ import urllib.request
 from html.parser import HTMLParser
 from typing import Iterable
 from .store import Store
+from .security import validate_public_http_url
 from .engine import tokens
 
 
@@ -39,6 +40,7 @@ class _TextExtractor(HTMLParser):
 
 
 def fetch_url_text(url: str, timeout: int = 12, max_chars: int = 12000) -> str:
+    validate_public_http_url(url)
     req = urllib.request.Request(
         url,
         headers={"User-Agent": "NilaLearner/0.3 (personal research; contact via GitHub)"},

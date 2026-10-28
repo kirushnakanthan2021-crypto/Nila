@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import hmac
 import os
+import time
+from collections import defaultdict, deque
+from threading import Lock
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -28,10 +31,30 @@ if not API_TOKEN:
 
 allowed_origins = [
     item.strip()
-    for item in os.environ.get("NILA_ALLOWED_ORIGINS", "*").split(",")
-    if item.strip()
+    for item in os.environ.get("NILA_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+    if item.strip() and item.strip() != "*"
 ]
+_RATE_BUCKETS: dict[str, deque[float]] = defaultdict(deque)
+_RATE_LOCK = Lock()
+_RATE_LIMIT = int(os.environ.get("NILA_RATE_LIMIT_PER_MINUTE", "60"))
 app = FastAPI(title="Nila Private API", version=__version__)
+@app.middleware("http")
+async def rate_limit_requests(request, call_next):
+    # Per-process guard; use shared storage for multi-worker deployments.
+    if request.url.path != "/api/health":
+        client = request.client.host if request.client else "unknown"
+        now = time.monotonic()
+        with _RATE_LOCK:
+            bucket = _RATE_BUCKETS[client]
+            while bucket and now - bucket[0] > 60:
+                bucket.popleft()
+            if len(bucket) >= max(1, _RATE_LIMIT):
+                from starlette.responses import JSONResponse
+                return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
+            bucket.append(now)
+    return await call_next(request)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,

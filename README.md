@@ -17,3 +17,10 @@ uvicorn api:app --host 0.0.0.0 --port 8000
 ```
 
 See [README_TA.md](./README_TA.md) for safety rules and full workflow.
+
+
+## Ethical Security Lab
+
+The mobile app includes a **Security Lab** tab for authorized, non-invasive security reviews. It creates OWASP-aligned checklists for authentication, authorization/IDOR, input validation, configuration, APIs/business logic, dependency/source review, and AI application security. It stores checklist progress locally and exports a JSON report. The target is not contacted; this is a methodology/checklist feature, not an automated scanner.
+
+See [security-lab/README.md](./security-lab/README.md).

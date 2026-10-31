@@ -9,4 +9,6 @@ services:
       - key: NILA_API_TOKEN
         generateValue: true
       - key: NILA_ALLOWED_ORIGINS
-        value: "*"
+        value: ""
+      - key: NILA_DATABASE_URL
+        sync: false

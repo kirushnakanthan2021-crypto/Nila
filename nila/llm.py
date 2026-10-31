@@ -23,6 +23,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 
+GROQ_API_KEY = "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"
+GEMINI_API_KEY = "AQ.Ab8RN6IQ8rMFavqNH29Pw6pgcfAtUi3kUrGxW8tM3wxKVW003w"
+
 def _parse_providers() -> list[dict[str, str]]:
     raw = os.environ.get("NILA_LLM_PROVIDERS", "").strip()
     providers: list[dict[str, str]] = []

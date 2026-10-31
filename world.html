@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080d20"><title>Nila 3D World</title>
+<link rel="stylesheet" href="./world.css">
+</head>
+<body>
+<header><a href="./index.html" aria-label="Back to Nila">←</a><div><strong>Nila 3D World</strong><small>REALISTIC AVATAR STUDIO</small></div><span id="state">3D READY</span></header>
+<main>
+<section class="stage-wrap">
+<div id="stage" aria-label="Interactive 3D room"><div class="loading" id="empty"><div class="orb">N</div><strong>Welcome to Nila's room</strong><p>Load a humanoid GLB/GLTF model to see Nila in 3D.</p></div></div>
+<div class="stage-controls"><button id="rotate">⟳ Rotate</button><button id="reset">⌖ Reset view</button><label class="upload">＋ Load 3D avatar<input id="model" type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json"></label></div>
+</section>
+<section class="panel"><h2>Make Nila move</h2><p id="model-note">For a realistic human, choose a humanoid .glb/.gltf model with animations. The model stays on this phone; it is not uploaded.</p><div class="actions"><button data-action="idle">Stand</button><button data-action="walk">Walk</button><button data-action="dance">Dance</button><button data-action="wave">Wave</button></div></section>
+<section class="panel"><h2>Face & voice</h2><p>Facial expressions and lip-sync will activate when the loaded model includes facial blendshapes (morph targets) and the voice chat module is connected.</p><div class="actions"><button id="smile">☺ Smile</button><button id="speak">▶ Test voice</button></div><p class="hint" id="voice-note">Voice test uses your browser's speech synthesis if available.</p></section>
+</main>
+<script type="module" src="./world.js"></script>
+</body></html>

@@ -39,14 +39,15 @@ def run_agent(store: Store, user_message: str) -> dict:
         "off",
         "false",
     }
-    if use_llm and ranked and ranked[0][0] >= 0.16:
+    if use_llm:
+        context = notes_blob or 'No matching saved notes yet.'
         polished = polish_with_context(
-            user_message, notes_blob or base_answer, prefer_tamil=tamil
+            user_message, context, prefer_tamil=tamil
         )
         if polished.get("ok") and polished.get("content"):
             answer = polished["content"]
             engine = f"nila-agent-v0.4+llm+embed:{embedding_backend()}"
-            llm_meta = {"model": polished.get("model")}
+            llm_meta = {"provider": polished.get("provider"), "model": polished.get("model")}
         else:
             llm_meta = {"error": polished.get("error")}
 

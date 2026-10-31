@@ -61,6 +61,13 @@
       <section id="settings-view" class="view" aria-label="Settings">
         <div class="page-heading"><p class="eyebrow">YOUR WORKSPACE</p><h2>Settings</h2><p class="subcopy">Simple controls for this first mobile version.</p></div>
         <article class="panel setting-row"><div><strong>Install Nila</strong><p>Add Nila to your phone's home screen for an app-like experience.</p></div><button id="install-btn" class="secondary-btn" type="button">Install</button></article>
+        <article class="panel">
+          <h3>AI providers</h3>
+          <p class="muted">Groq and Gemini API keys stay on the private backend. Add them as Render environment secrets; Nila never stores provider keys in this phone browser.</p>
+          <div id="provider-status" class="muted">Connect the Python backend to check configured AI providers.</div>
+          <button id="refresh-providers" class="secondary-btn full" type="button">Refresh provider status</button>
+          <p class="muted">Normal chat uses the first configured provider. Council can ask all configured providers together.</p>
+        </article>
         <form id="api-form" class="panel">
           <h3>Python backend connection</h3><p class="muted">Connect this phone app to Nila's Python + SQLite engine hosted on a backend service.</p>
           <label for="api-url">Backend HTTPS URL</label><input id="api-url" type="url" placeholder="https://your-nila-service.onrender.com" autocomplete="url">

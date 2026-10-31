@@ -35,6 +35,16 @@ jobs:
             p/python
             p/security-audit
 
+  codeql:
+    name: CodeQL Python analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: python
+      - uses: github/codeql-action/analyze@v3
+
   trivy:
     name: Trivy filesystem scan
     runs-on: ubuntu-latest

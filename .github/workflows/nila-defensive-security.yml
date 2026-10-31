@@ -1,0 +1,73 @@
+name: Nila Defensive Security Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      authorized_target:
+        description: "Confirm you own this target or have explicit written permission"
+        required: true
+        type: boolean
+        default: false
+      target_url:
+        description: "Optional HTTPS URL for OWASP ZAP passive Baseline scan"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  semgrep:
+    name: Semgrep source scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: semgrep/semgrep-action@v1
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        with:
+          config: >-
+            p/python
+            p/security-audit
+
+  trivy:
+    name: Trivy filesystem scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan repository for vulnerabilities, misconfigurations and secrets
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          format: table
+          exit-code: '0'
+
+  zap_baseline:
+    name: OWASP ZAP passive Baseline scan (manual and authorized only)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.authorized_target == true && inputs.target_url != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require HTTPS target
+        shell: bash
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
+        run: |
+          python - <<'PY'
+          import os
+          from urllib.parse import urlparse
+          u = urlparse(os.environ["TARGET_URL"])
+          if u.scheme != "https" or not u.hostname:
+              raise SystemExit("Only a valid HTTPS target is allowed.")
+          PY
+      - name: Run passive ZAP Baseline scan
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: ${{ inputs.target_url }}
+          fail_action: false

@@ -1,8 +1,8 @@
-"""
+""""
 Human-gated patch export / apply.
 
 - Never auto-edits files under nila/ (core engine).
-- Writes only into workspace/ directory.
+- Writes only into WORKSPACE directory.
 - Apply requires explicit confirmation string from the human.
 """
 from __future__ import annotations
@@ -54,7 +54,7 @@ def export_proposal_file(
         f"Suggested path hint: `{target_hint}`\n\n"
         f"## Code\n\n```python\n{proposed_code}\n```\n\n"
         f"## Apply rules\n"
-        f"- Core paths under `nila/`, `tests/`, `main.py`, `api.py` are protected.\n"
+        f"- Core paths under `nila/`, `tests/`, `.github/`, `main.py`, `api.py` are protected.\n"
         f"- Use CLI 'Apply workspace patch' only after you review.\n"
         f"- Type CONFIRM to write into workspace/ only.\n"
     )
@@ -69,7 +69,7 @@ def write_workspace_file(
     confirm: str,
 ) -> dict:
     """
-    Write a file under workspace/ only.
+    Write a file under WORKSPACE only.
     confirm must be exactly 'CONFIRM'.
     """
     if confirm != "CONFIRM":
@@ -78,22 +78,31 @@ def write_workspace_file(
             "error": "Refused: type CONFIRM exactly to apply.",
         }
 
-    rel = relative_path.replace("\\", "/").lstrip("./")
-    if not rel.startswith("workspace/"):
-        rel = f"workspace/{rel}"
+    supplied = relative_path.replace("\\", "/")
+    if supplied.startswith("/"):
+        return {"ok": False, "error": "Absolute paths are not allowed."}
 
-    if is_protected(rel):
-        return {"ok": False, "error": f"Protected path refused: {rel}"}
+    # Accept either "scratch.py" or "workspace/scratch.py", but always
+    # resolve the destination relative to the configured WORKSPACE.
+    parts = list(Path(supplied).parts)
+    if parts and parts[0] == WORKSPACE.name:
+        parts = parts[1:]
+    if not parts or any(part in ("", ".", "..") for part in parts):
+        return {"ok": False, "error": "Invalid workspace path."}
 
-    # prevent path escape
-    target = Path(rel).resolve()
+    protected_candidate = "/".join(parts)
+    if is_protected(protected_candidate):
+        return {
+            "ok": False,
+            "error": f"Protected path refused: {protected_candidate}",
+        }
+
     workspace_root = WORKSPACE.resolve()
-    if workspace_root not in target.parents and target != workspace_root:
-        # target should be inside workspace
-        try:
-            target.relative_to(workspace_root)
-        except ValueError:
-            return {"ok": False, "error": "Path escapes workspace/."}
+    target = (workspace_root.joinpath(*parts)).resolve()
+    try:
+        target.relative_to(workspace_root)
+    except ValueError:
+        return {"ok": False, "error": "Path escapes workspace/."}
 
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")

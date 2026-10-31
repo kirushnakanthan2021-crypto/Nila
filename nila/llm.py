@@ -44,6 +44,14 @@ def _parse_providers() -> list[dict[str, str]]:
         except json.JSONDecodeError:
             pass
 
+    # Built-in providers read keys only from backend environment variables.
+    for item in [
+        {"name": "groq", "base_url": "https://api.groq.com/openai/v1", "api_key": os.environ.get("GROQ_API_KEY", "").strip(), "model": os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b").strip()},
+        {"name": "gemini", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai", "api_key": os.environ.get("GEMINI_API_KEY", "").strip(), "model": os.environ.get("GEMINI_MODEL", "gemini-3.8-flash").strip()},
+    ]:
+        if item["api_key"] and item["model"] and item["name"] not in [p["name"] for p in providers]:
+            providers.append(item)
+
     # legacy single provider
     base = os.environ.get("NILA_LLM_BASE_URL", "").strip().rstrip("/")
     key = os.environ.get("NILA_LLM_API_KEY", "").strip()

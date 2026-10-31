@@ -2,6 +2,13 @@
 from __future__ import annotations
 import os
 import sqlite3
+
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:
+    psycopg = None
+    dict_row = None
 from pathlib import Path
 from typing import Any
 
@@ -10,12 +17,41 @@ def default_db_path() -> str:
     return os.environ.get("NILA_DB_PATH") or str(Path(".local") / "nila.sqlite3")
 
 
+
+class _PostgresConnection:
+    """Compatibility layer for the Store's SQLite-style SQL."""
+    def __init__(self, dsn: str):
+        self._conn = psycopg.connect(dsn, row_factory=dict_row)
+
+    def execute(self, sql: str, params=()):
+        return self._conn.execute(sql.replace('?', '%s'), params)
+
+    def executescript(self, script: str):
+        script = script.replace('INTEGER PRIMARY KEY AUTOINCREMENT', 'BIGSERIAL PRIMARY KEY')
+        for statement in script.split(';'):
+            statement = statement.strip()
+            if statement and not statement.upper().startswith('PRAGMA '):
+                self._conn.execute(statement)
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
 class Store:
     def __init__(self, path: str | None = None):
-        self.path = path or default_db_path()
-        Path(self.path).expanduser().parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(self.path)
-        self.conn.row_factory = sqlite3.Row
+        self.database_url = os.environ.get('NILA_DATABASE_URL', '').strip()
+        if self.database_url:
+            if psycopg is None:
+                raise RuntimeError('NILA_DATABASE_URL is set but psycopg is not installed; install requirements.txt.')
+            self.path = 'postgresql'
+            self.conn = _PostgresConnection(self.database_url)
+        else:
+            self.path = path or default_db_path()
+            Path(self.path).expanduser().parent.mkdir(parents=True, exist_ok=True)
+            self.conn = sqlite3.connect(self.path)
+            self.conn.row_factory = sqlite3.Row
         self.conn.executescript(
             """
         PRAGMA foreign_keys = ON;
@@ -114,11 +150,11 @@ class Store:
 
     def add_memory(self, content: str, tags: str = "") -> int:
         cur = self.conn.execute(
-            "INSERT INTO memories(content,tags) VALUES(?,?)",
+            "INSERT INTO memories(content,tags) VALUES(?,?) RETURNING id",
             (content.strip(), tags.strip()),
         )
         self.conn.commit()
-        return int(cur.lastrowid)
+        return int(cur.fetchone()['id'])
 
     def add_knowledge(
         self,
@@ -129,7 +165,7 @@ class Store:
         topic: str = "",
     ) -> int:
         cur = self.conn.execute(
-            "INSERT INTO knowledge(title,content,source,verified,topic) VALUES(?,?,?,?,?)",
+            "INSERT INTO knowledge(title,content,source,verified,topic) VALUES(?,?,?,?,?) RETURNING id",
             (
                 title.strip(),
                 content.strip(),
@@ -139,7 +175,7 @@ class Store:
             ),
         )
         self.conn.commit()
-        return int(cur.lastrowid)
+        return int(cur.fetchone()['id'])
 
     def search(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
         q = query.strip()
@@ -205,11 +241,11 @@ class Store:
 
     def add_eval_case(self, question: str, expected_keywords: str) -> int:
         cur = self.conn.execute(
-            "INSERT INTO eval_cases(question,expected_keywords) VALUES(?,?)",
+            "INSERT INTO eval_cases(question,expected_keywords) VALUES(?,?) RETURNING id",
             (question.strip(), expected_keywords.strip().lower()),
         )
         self.conn.commit()
-        return int(cur.lastrowid)
+        return int(cur.fetchone()['id'])
 
     def eval_cases(self) -> list[dict[str, Any]]:
         return [
@@ -246,20 +282,20 @@ class Store:
 
     def add_idea(self, idea: str) -> int:
         cur = self.conn.execute(
-            "INSERT INTO improvement_ideas(idea) VALUES(?)", (idea.strip(),)
+            "INSERT INTO improvement_ideas(idea) VALUES(?) RETURNING id", (idea.strip(),)
         )
         self.conn.commit()
-        return int(cur.lastrowid)
+        return int(cur.fetchone()['id'])
 
     def add_learning_session(
         self, topic: str, summary: str, sources_used: str, facts_added: int
     ) -> int:
         cur = self.conn.execute(
-            "INSERT INTO learning_sessions(topic,summary,sources_used,facts_added) VALUES(?,?,?,?)",
+            "INSERT INTO learning_sessions(topic,summary,sources_used,facts_added) VALUES(?,?,?,?) RETURNING id",
             (topic.strip(), summary.strip(), sources_used.strip(), facts_added),
         )
         self.conn.commit()
-        return int(cur.lastrowid)
+        return int(cur.fetchone()['id'])
 
     def recent_learning_sessions(self, limit: int = 10) -> list[dict[str, Any]]:
         rows = self.conn.execute(
@@ -271,11 +307,11 @@ class Store:
         self, title: str, description: str, proposed_code: str = "", reason: str = ""
     ) -> int:
         cur = self.conn.execute(
-            "INSERT INTO proposed_changes(title,description,proposed_code,reason) VALUES(?,?,?,?)",
+            "INSERT INTO proposed_changes(title,description,proposed_code,reason) VALUES(?,?,?,?) RETURNING id",
             (title.strip(), description.strip(), proposed_code.strip(), reason.strip()),
         )
         self.conn.commit()
-        return int(cur.lastrowid)
+        return int(cur.fetchone()['id'])
 
     def pending_proposals(self, limit: int = 20) -> list[dict[str, Any]]:
         rows = self.conn.execute(
@@ -294,11 +330,11 @@ class Store:
     # --- conversation memory ---
     def add_message(self, role: str, content: str, meta: str = "") -> int:
         cur = self.conn.execute(
-            "INSERT INTO conversations(role,content,meta) VALUES(?,?,?)",
+            "INSERT INTO conversations(role,content,meta) VALUES(?,?,?) RETURNING id",
             (role.strip(), content.strip(), meta.strip()),
         )
         self.conn.commit()
-        return int(cur.lastrowid)
+        return int(cur.fetchone()['id'])
 
     def recent_messages(self, limit: int = 20) -> list[dict[str, Any]]:
         rows = self.conn.execute(
@@ -313,11 +349,11 @@ class Store:
     # --- goals / planner ---
     def add_goal(self, title: str, description: str = "", plan_json: str = "[]") -> int:
         cur = self.conn.execute(
-            "INSERT INTO goals(title,description,plan_json) VALUES(?,?,?)",
+            "INSERT INTO goals(title,description,plan_json) VALUES(?,?,?) RETURNING id",
             (title.strip(), description.strip(), plan_json),
         )
         self.conn.commit()
-        return int(cur.lastrowid)
+        return int(cur.fetchone()['id'])
 
     def list_goals(self, status: str | None = "open", limit: int = 20) -> list[dict[str, Any]]:
         if status:
@@ -344,11 +380,11 @@ class Store:
 
     def log_interaction(self, kind: str, detail: str = "") -> int:
         cur = self.conn.execute(
-            "INSERT INTO interaction_logs(kind,detail) VALUES(?,?)",
+            "INSERT INTO interaction_logs(kind,detail) VALUES(?,?) RETURNING id",
             (kind.strip(), detail.strip()[:4000]),
         )
         self.conn.commit()
-        return int(cur.lastrowid)
+        return int(cur.fetchone()['id'])
 
     def recent_logs(self, limit: int = 30) -> list[dict[str, Any]]:
         rows = self.conn.execute(

@@ -30,10 +30,10 @@ if not API_TOKEN:
 
 allowed_origins = [
     item.strip()
-    for item in os.environ.get("NILA_ALLOWED_ORIGINS", "*").split(",")
+    for item in os.environ.get("NILA_ALLOWED_ORIGINS", "").split(",")
     if item.strip()
 ]
-app = FastAPI(title="Nila Private API", version=__version__)
+if "*" in allowed_origins:\n    raise RuntimeError("Wildcard CORS is disabled. Set NILA_ALLOWED_ORIGINS to exact trusted origins.")\n\napp = FastAPI(title="Nila Private API", version=__version__)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,

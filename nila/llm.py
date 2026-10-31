@@ -326,7 +326,7 @@ def polish_with_context(
     )
     system = (
         "You are Nila, a careful personal learning assistant. "
-        "Answer ONLY using the provided notes. If notes are insufficient, say you don't know yet "
+        "Answer general questions using your trained knowledge. Use the provided notes as optional personal context; if a specific fact is uncertain, say so "
         "and suggest learning more. Do not invent facts. Do not output executable code unless asked. "
         + lang
     )

@@ -28,6 +28,25 @@ def ask(label: str) -> str:
     return input(label).strip()
 
 
+def seed_ethical_hacking_tools(store: Store) -> dict:
+    """Load curated Ethical Hacking Tools facts into Nila knowledge base."""
+    data_path = Path(__file__).parent / "data" / "ethical_hacking_tools.txt"
+    if not data_path.exists():
+        return {"ok": False, "error": f"File not found: {data_path}"}
+    text = data_path.read_text(encoding="utf-8").strip()
+    if len(text) < 50:
+        return {"ok": False, "error": "Knowledge file is empty or too short."}
+    result = learn_from_text(
+        store,
+        topic="Ethical Hacking Tools",
+        text=text,
+        source="data/ethical_hacking_tools.txt (curated)",
+        verified=True,
+        max_facts=20,
+    )
+    return {"ok": True, **result}
+
+
 def main() -> None:
     store = Store()
     print(f"\nNila v{__version__} — advanced personal AI foundation")
@@ -70,6 +89,7 @@ def main() -> None:
 26. Export knowledge backup (JSON)
 27. Import knowledge backup (JSON)
 28. Multi-AI council (ALL keys discuss in parallel)
+29. Seed Ethical Hacking Tools knowledge (one-click learn)
 0.  Exit
 """
             )
@@ -404,7 +424,7 @@ def main() -> None:
                 if not llm_configured():
                     print(
                         "Configure multi keys first, e.g.:\n"
-                        "  export NILA_LLM_PROVIDERS='[{\"name\":\"groq\",...}, ...]'\n"
+                        "  export NILA_LLM_PROVIDERS='[{\"name\":\"groq\",...}, ...]\n"
                         "See README_OPTIONAL.md"
                     )
                 else:
@@ -414,6 +434,18 @@ def main() -> None:
                         print("Calling ALL providers in parallel...")
                         result = run_council(store, q, synthesize=True)
                         print(format_council_result(result))
+
+            elif choice == "29":
+                print("Seeding Ethical Hacking Tools knowledge into Nila...")
+                result = seed_ethical_hacking_tools(store)
+                if not result.get("ok"):
+                    print("Failed:", result.get("error"))
+                else:
+                    print(result.get("summary", "Done."))
+                    print(f"Facts added: {result.get('facts_added', 0)}")
+                    for f in result.get("facts", [])[:12]:
+                        print("-", f[:130] + ("..." if len(f) > 130 else ""))
+                    print("\nYou can now ask Nila about these tools (menu 4 or 5).")
 
             elif choice == "0":
                 print("Nila session ended. Database is kept at its configured path.")

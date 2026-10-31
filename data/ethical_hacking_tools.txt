@@ -1,0 +1,37 @@
+Ethical Hacking Tools Knowledge Base
+Topic: Ethical Hacking Tools
+Use only on systems you own or have explicit written permission to test. Unauthorized access is illegal.
+
+Nmap is an open-source network discovery and security auditing tool. It is used for host discovery, port scanning, service and version detection, and OS fingerprinting. Official site: https://nmap.org
+
+OWASP ZAP (Zed Attack Proxy) is a free and open-source web application security scanner maintained by OWASP. It acts as an intercepting proxy and supports both automated and manual testing of web applications.
+
+Metasploit Framework is an open-source penetration testing framework used to develop, test, and execute exploits against known vulnerabilities in authorized environments. It is maintained by Rapid7.
+
+sqlmap is an open-source tool that automates the detection and testing of SQL injection vulnerabilities in web applications. It supports a wide range of database management systems.
+
+Nuclei is a fast, template-based vulnerability scanner developed by ProjectDiscovery. It uses community-contributed YAML templates to check for known vulnerabilities across large attack surfaces.
+
+Burp Suite is a widely used web application security testing platform. The Community edition is free and provides an intercepting proxy, repeater, and basic tools suitable for learning and manual testing.
+
+Hashcat is a high-performance password recovery and auditing tool that uses GPU acceleration. It is intended for authorized password strength testing and recovery only.
+
+John the Ripper is an open-source password cracking and auditing tool commonly used to test the strength of password hashes in authorized security assessments.
+
+Gobuster and ffuf are open-source tools used for directory, file, and virtual host discovery on web servers during authorized penetration tests.
+
+Aircrack-ng is a suite of tools for auditing wireless networks. It is used for monitoring, attacking, and testing Wi-Fi security in controlled and authorized environments.
+
+Kali Linux is a Debian-based Linux distribution specifically designed for penetration testing, digital forensics, and security research. It comes pre-installed with hundreds of security tools.
+
+BloodHound is a tool for analyzing Active Directory environments and mapping attack paths. It helps identify privilege escalation opportunities during authorized internal assessments.
+
+Impacket is a collection of Python classes for working with network protocols. It is commonly used in Active Directory security testing for tasks such as authentication and protocol interaction.
+
+Nikto is an open-source web server scanner that checks for dangerous files, outdated server software, and common misconfigurations.
+
+Wireshark is a free and open-source network protocol analyzer used for packet capture and deep inspection of network traffic during troubleshooting and security analysis.
+
+Amass and subfinder are open-source tools focused on subdomain enumeration and attack surface mapping as part of reconnaissance in authorized engagements.
+
+Always obtain proper authorization before using any of these tools against systems that do not belong to you. Ethical hacking is about finding and fixing weaknesses legally.

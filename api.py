@@ -25,8 +25,8 @@ from nila.stats import collect_stats
 from nila.store import Store
 
 API_TOKEN = os.environ.get("NILA_API_TOKEN", "")
-if not API_TOKEN:
-    raise RuntimeError("Set NILA_API_TOKEN to a long random secret before starting Nila API.")
+if len(API_TOKEN) < 32:
+    raise RuntimeError("Set NILA_API_TOKEN to a random secret of at least 32 characters before starting Nila API.")
 
 allowed_origins = [
     item.strip()

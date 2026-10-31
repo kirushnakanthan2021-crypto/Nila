@@ -153,8 +153,9 @@ class Store:
             "INSERT INTO memories(content,tags) VALUES(?,?) RETURNING id",
             (content.strip(), tags.strip()),
         )
+        item_id = int(cur.fetchone()['id'])
         self.conn.commit()
-        return int(cur.fetchone()['id'])
+        return item_id
 
     def add_knowledge(
         self,
@@ -174,8 +175,9 @@ class Store:
                 topic.strip(),
             ),
         )
+        item_id = int(cur.fetchone()['id'])
         self.conn.commit()
-        return int(cur.fetchone()['id'])
+        return item_id
 
     def search(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
         q = query.strip()
@@ -244,8 +246,9 @@ class Store:
             "INSERT INTO eval_cases(question,expected_keywords) VALUES(?,?) RETURNING id",
             (question.strip(), expected_keywords.strip().lower()),
         )
+        item_id = int(cur.fetchone()['id'])
         self.conn.commit()
-        return int(cur.fetchone()['id'])
+        return item_id
 
     def eval_cases(self) -> list[dict[str, Any]]:
         return [
@@ -284,8 +287,9 @@ class Store:
         cur = self.conn.execute(
             "INSERT INTO improvement_ideas(idea) VALUES(?) RETURNING id", (idea.strip(),)
         )
+        item_id = int(cur.fetchone()['id'])
         self.conn.commit()
-        return int(cur.fetchone()['id'])
+        return item_id
 
     def add_learning_session(
         self, topic: str, summary: str, sources_used: str, facts_added: int
@@ -294,8 +298,9 @@ class Store:
             "INSERT INTO learning_sessions(topic,summary,sources_used,facts_added) VALUES(?,?,?,?) RETURNING id",
             (topic.strip(), summary.strip(), sources_used.strip(), facts_added),
         )
+        item_id = int(cur.fetchone()['id'])
         self.conn.commit()
-        return int(cur.fetchone()['id'])
+        return item_id
 
     def recent_learning_sessions(self, limit: int = 10) -> list[dict[str, Any]]:
         rows = self.conn.execute(
@@ -310,8 +315,9 @@ class Store:
             "INSERT INTO proposed_changes(title,description,proposed_code,reason) VALUES(?,?,?,?) RETURNING id",
             (title.strip(), description.strip(), proposed_code.strip(), reason.strip()),
         )
+        item_id = int(cur.fetchone()['id'])
         self.conn.commit()
-        return int(cur.fetchone()['id'])
+        return item_id
 
     def pending_proposals(self, limit: int = 20) -> list[dict[str, Any]]:
         rows = self.conn.execute(
@@ -333,8 +339,9 @@ class Store:
             "INSERT INTO conversations(role,content,meta) VALUES(?,?,?) RETURNING id",
             (role.strip(), content.strip(), meta.strip()),
         )
+        item_id = int(cur.fetchone()['id'])
         self.conn.commit()
-        return int(cur.fetchone()['id'])
+        return item_id
 
     def recent_messages(self, limit: int = 20) -> list[dict[str, Any]]:
         rows = self.conn.execute(
@@ -352,8 +359,9 @@ class Store:
             "INSERT INTO goals(title,description,plan_json) VALUES(?,?,?) RETURNING id",
             (title.strip(), description.strip(), plan_json),
         )
+        item_id = int(cur.fetchone()['id'])
         self.conn.commit()
-        return int(cur.fetchone()['id'])
+        return item_id
 
     def list_goals(self, status: str | None = "open", limit: int = 20) -> list[dict[str, Any]]:
         if status:
@@ -383,8 +391,9 @@ class Store:
             "INSERT INTO interaction_logs(kind,detail) VALUES(?,?) RETURNING id",
             (kind.strip(), detail.strip()[:4000]),
         )
+        item_id = int(cur.fetchone()['id'])
         self.conn.commit()
-        return int(cur.fetchone()['id'])
+        return item_id
 
     def recent_logs(self, limit: int = 30) -> list[dict[str, Any]]:
         rows = self.conn.execute(

@@ -7,11 +7,12 @@ It does NOT automatically rewrite its own source code.
 """
 from __future__ import annotations
 import re
-import urllib.request
-import urllib.error
+import http.client
 import ipaddress
 import socket
+import ssl
 import time
+from email.message import Message
 from urllib.parse import urljoin, urlsplit
 from html.parser import HTMLParser
 from typing import Iterable
@@ -43,8 +44,8 @@ class _TextExtractor(HTMLParser):
         return " ".join(self._chunks)
 
 
-def _validate_public_https_url(url: str) -> str:
-    """Reject non-HTTPS URLs and any host resolving to a non-public IP."""
+def _validate_public_https_url(url: str) -> tuple[str, str, str]:
+    """Validate HTTPS and pin the TCP connection to a resolved public IP."""
     try:
         parsed = urlsplit(url)
         if parsed.scheme.lower() != "https" or not parsed.hostname:
@@ -56,64 +57,80 @@ def _validate_public_https_url(url: str) -> str:
         host = parsed.hostname.rstrip(".").encode("idna").decode("ascii")
         if host.lower() in {"localhost", "localhost.localdomain"}:
             raise ValueError("Private or local network destinations are blocked.")
-        addresses = {item[4][0] for item in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)}
+        addresses = list(dict.fromkeys(item[4][0] for item in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)))
         if not addresses:
             raise ValueError("Could not resolve URL host.")
         for address in addresses:
-            ip = ipaddress.ip_address(address.split("%", 1)[0])
-            if not ip.is_global:
+            if not ipaddress.ip_address(address.split("%", 1)[0]).is_global:
                 raise ValueError("Private, reserved, and local network destinations are blocked.")
-        return url
+        path = parsed.path or "/"
+        if parsed.query:
+            path += "?" + parsed.query
+        return host, addresses[0], path
     except (socket.gaierror, UnicodeError, ValueError) as exc:
         if isinstance(exc, ValueError) and str(exc).startswith(("Only ", "URLs ", "Private ", "Could not ")):
             raise
         raise ValueError("Invalid or unsafe URL.") from exc
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """Use the validated IP while retaining the hostname for TLS SNI."""
+    def __init__(self, host: str, ip: str, timeout: float):
+        super().__init__(host, port=443, timeout=timeout, context=ssl.create_default_context())
+        self._pinned_ip = ip
+
+    def connect(self):
+        raw = socket.create_connection((self._pinned_ip, self.port), self.timeout)
+        self.sock = self._context.wrap_socket(raw, server_hostname=self.host)
 
 
 def fetch_url_text(url: str, timeout: int = 12, max_chars: int = 12000) -> str:
-    """Fetch a bounded public HTTPS page; validate every redirect target."""
-    current = _validate_public_https_url(url)
-    opener = urllib.request.build_opener(_NoRedirect)
+    """Fetch bounded public HTTPS content with DNS pinning and redirect revalidation."""
+    current = url
     deadline = time.monotonic() + timeout
     for _ in range(4):
-        remaining = max(1, deadline - time.monotonic())
-        req = urllib.request.Request(
-            current,
-            headers={"User-Agent": "NilaLearner/0.5 (+https://github.com/kirushnakanthan2021-crypto/Nila)",
-                     "Accept": "text/html,text/plain"},
-        )
+        host, ip, path = _validate_public_https_url(current)
+        conn = _PinnedHTTPSConnection(host, ip, max(1, deadline - time.monotonic()))
         try:
-            with opener.open(req, timeout=remaining) as resp:
-                content_type = resp.headers.get_content_type().lower()
-                if content_type not in {"text/html", "text/plain", "application/xhtml+xml"}:
-                    raise ValueError("Only HTML or plain-text pages can be learned.")
-                raw = resp.read(1_000_001)
-                if len(raw) > 1_000_000:
-                    raise ValueError("Web page exceeds the 1 MB learning limit.")
-                charset = resp.headers.get_content_charset() or "utf-8"
-                html = raw.decode(charset, errors="replace")
-                break
-        except urllib.error.HTTPError as exc:
-            if exc.code not in {301, 302, 303, 307, 308}:
-                raise ValueError(f"Page request failed with HTTP {exc.code}.") from exc
-            location = exc.headers.get("Location")
-            if not location:
-                raise ValueError("Redirect did not include a destination.")
-            current = _validate_public_https_url(urljoin(current, location))
-        except TimeoutError as exc:
+            conn.request("GET", path, headers={
+                "Host": host,
+                "User-Agent": "NilaLearner/0.5 (+https://github.com/kirushnakanthan2021-crypto/Nila)",
+                "Accept": "text/html,text/plain,application/xhtml+xml",
+                "Connection": "close",
+            })
+            response = conn.getresponse()
+            if response.status in {301, 302, 303, 307, 308}:
+                location = response.getheader("Location")
+                if not location:
+                    raise ValueError("Redirect did not include a destination.")
+                current = urljoin(current, location)
+                continue
+            if response.status < 200 or response.status >= 300:
+                raise ValueError(f"Page request failed with HTTP {response.status}.")
+            content_type = (response.getheader("Content-Type") or "").split(";", 1)[0].strip().lower()
+            if content_type not in {"text/html", "text/plain", "application/xhtml+xml"}:
+                raise ValueError("Only HTML or plain-text pages can be learned.")
+            content_length = response.getheader("Content-Length")
+            if content_length and int(content_length) > 1_000_000:
+                raise ValueError("Web page exceeds the 1 MB learning limit.")
+            raw = response.read(1_000_001)
+            if len(raw) > 1_000_000:
+                raise ValueError("Web page exceeds the 1 MB learning limit.")
+            metadata = Message()
+            metadata["content-type"] = response.getheader("Content-Type", "text/html; charset=utf-8")
+            html = raw.decode(metadata.get_content_charset() or "utf-8", errors="replace")
+            break
+        except (socket.timeout, TimeoutError) as exc:
             raise ValueError("Page request timed out.") from exc
+        finally:
+            conn.close()
     else:
         raise ValueError("Too many redirects while fetching page.")
 
     parser = _TextExtractor()
     parser.feed(html)
     text = parser.get_text()
-    text = re.sub(r"\\s+", " ", text).strip()
+    text = re.sub(r"\s+", " ", text).strip()
     return text[:max_chars]
 
 

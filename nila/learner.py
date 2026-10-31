@@ -68,7 +68,7 @@ def _validate_public_https_url(url: str) -> tuple[str, str, str]:
             path += "?" + parsed.query
         return host, addresses[0], path
     except (socket.gaierror, UnicodeError, ValueError) as exc:
-        if isinstance(exc, ValueError) and str(exc).startswith(("Only ", "URLs ", "Private ", "Could not ")):
+        if isinstance(exc, ValueError) and str(exc).startswith(("Only ", "URLs ", "Private", "Could not ")):
             raise
         raise ValueError("Invalid or unsafe URL.") from exc
 

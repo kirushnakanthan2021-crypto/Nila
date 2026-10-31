@@ -8,6 +8,11 @@ It does NOT automatically rewrite its own source code.
 from __future__ import annotations
 import re
 import urllib.request
+import urllib.error
+import ipaddress
+import socket
+import time
+from urllib.parse import urljoin, urlsplit
 from html.parser import HTMLParser
 from typing import Iterable
 from .store import Store
@@ -38,22 +43,77 @@ class _TextExtractor(HTMLParser):
         return " ".join(self._chunks)
 
 
+def _validate_public_https_url(url: str) -> str:
+    """Reject non-HTTPS URLs and any host resolving to a non-public IP."""
+    try:
+        parsed = urlsplit(url)
+        if parsed.scheme.lower() != "https" or not parsed.hostname:
+            raise ValueError("Only public HTTPS URLs are allowed.")
+        if parsed.username or parsed.password:
+            raise ValueError("URLs containing credentials are not allowed.")
+        if parsed.port not in (None, 443):
+            raise ValueError("Only the standard HTTPS port is allowed.")
+        host = parsed.hostname.rstrip(".").encode("idna").decode("ascii")
+        if host.lower() in {"localhost", "localhost.localdomain"}:
+            raise ValueError("Private or local network destinations are blocked.")
+        addresses = {item[4][0] for item in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)}
+        if not addresses:
+            raise ValueError("Could not resolve URL host.")
+        for address in addresses:
+            ip = ipaddress.ip_address(address.split("%", 1)[0])
+            if not ip.is_global:
+                raise ValueError("Private, reserved, and local network destinations are blocked.")
+        return url
+    except (socket.gaierror, UnicodeError, ValueError) as exc:
+        if isinstance(exc, ValueError) and str(exc).startswith(("Only ", "URLs ", "Private ", "Could not ")):
+            raise
+        raise ValueError("Invalid or unsafe URL.") from exc
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def fetch_url_text(url: str, timeout: int = 12, max_chars: int = 12000) -> str:
-    req = urllib.request.Request(
-        url,
-        headers={"User-Agent": "NilaLearner/0.3 (personal research; contact via GitHub)"},
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        raw = resp.read()
-        charset = "utf-8"
-        ctype = resp.headers.get_content_charset()
-        if ctype:
-            charset = ctype
-        html = raw.decode(charset, errors="replace")
+    """Fetch a bounded public HTTPS page; validate every redirect target."""
+    current = _validate_public_https_url(url)
+    opener = urllib.request.build_opener(_NoRedirect)
+    deadline = time.monotonic() + timeout
+    for _ in range(4):
+        remaining = max(1, deadline - time.monotonic())
+        req = urllib.request.Request(
+            current,
+            headers={"User-Agent": "NilaLearner/0.5 (+https://github.com/kirushnakanthan2021-crypto/Nila)",
+                     "Accept": "text/html,text/plain"},
+        )
+        try:
+            with opener.open(req, timeout=remaining) as resp:
+                content_type = resp.headers.get_content_type().lower()
+                if content_type not in {"text/html", "text/plain", "application/xhtml+xml"}:
+                    raise ValueError("Only HTML or plain-text pages can be learned.")
+                raw = resp.read(1_000_001)
+                if len(raw) > 1_000_000:
+                    raise ValueError("Web page exceeds the 1 MB learning limit.")
+                charset = resp.headers.get_content_charset() or "utf-8"
+                html = raw.decode(charset, errors="replace")
+                break
+        except urllib.error.HTTPError as exc:
+            if exc.code not in {301, 302, 303, 307, 308}:
+                raise ValueError(f"Page request failed with HTTP {exc.code}.") from exc
+            location = exc.headers.get("Location")
+            if not location:
+                raise ValueError("Redirect did not include a destination.")
+            current = _validate_public_https_url(urljoin(current, location))
+        except TimeoutError as exc:
+            raise ValueError("Page request timed out.") from exc
+    else:
+        raise ValueError("Too many redirects while fetching page.")
+
     parser = _TextExtractor()
     parser.feed(html)
     text = parser.get_text()
-    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"\\s+", " ", text).strip()
     return text[:max_chars]
 
 
